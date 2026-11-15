@@ -1,0 +1,27 @@
+PROJECT NAME:
+FoodLoop – Smart Surplus Food Redistribution System
+
+PROJECT TYPE:
+Full Stack Web Application
+
+FRONTEND:
+React.js
+
+BACKEND:
+Java Spring Boot
+
+DATABASE:
+MySQL
+
+PROJECT DESCRIPTION:
+FoodLoop is a web-based application that connects
+food donors with NGOs and volunteers.
+
+Donors can publish surplus food details.
+NGOs can request available food.
+Volunteers can collect and deliver food.
+Admins can manage users and monitor donations.
+
+MAIN OBJECTIVE:
+To reduce food wastage and improve food
+redistribution through a centralised platform.
