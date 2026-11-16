@@ -6,4 +6,6 @@ node_modules/
 build/
 dist/
 target/
+*.log
+.pids/
 foodloop-backend/src/main/resources/application.properties

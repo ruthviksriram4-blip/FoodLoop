@@ -11,50 +11,34 @@ function AdminDashboard() {
   const [requests, setRequests] = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const [reports, setReports] = useState(null);
 
   const [activeTab, setActiveTab] = useState("overview");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [assignmentError, setAssignmentError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [actionLoadingId, setActionLoadingId] = useState(null);
 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
     setError("");
-    setAssignmentError("");
+    setSuccess("");
 
     const results = await Promise.allSettled([
       api.get("/users"),
       api.get("/donations"),
       api.get("/requests"),
       api.get("/assignments"),
-      api.get(`/notifications/user/${user.userId}`),
+      api.get(`/notifications/user/${user?.userId}`),
+      api.get("/admin/reports"),
     ]);
 
-    const setters = [
-      setUsers,
-      setDonations,
-      setRequests,
-      setAssignments,
-      setNotifications,
-    ];
-
-    const labels = [
-      "users",
-      "donations",
-      "requests",
-      "assignments",
-      "notifications",
-    ];
-
-    results.forEach((result, index) => {
-      if (result.status === "fulfilled") {
-        setters[index](result.value.data);
-      } else if (labels[index] === "assignments") {
-        setAssignmentError("Unable to load assignments.");
-      } else {
-        setError(`Unable to load ${labels[index]}.`);
-      }
-    });
+    if (results[0].status === "fulfilled") setUsers(results[0].value.data);
+    if (results[1].status === "fulfilled") setDonations(results[1].value.data);
+    if (results[2].status === "fulfilled") setRequests(results[2].value.data);
+    if (results[3].status === "fulfilled") setAssignments(results[3].value.data);
+    if (results[4].status === "fulfilled") setNotifications(results[4].value.data);
+    if (results[5].status === "fulfilled") setReports(results[5].value.data);
 
     setLoading(false);
   }, [user?.userId]);
@@ -67,23 +51,66 @@ function AdminDashboard() {
     return <Navigate to="/login" replace />;
   }
 
+  const handleVerifyNgo = async (userId, userName) => {
+    setActionLoadingId(userId);
+    setError("");
+    setSuccess("");
+
+    try {
+      await api.put(`/admin/ngos/${userId}/verify`);
+      setSuccess(`NGO "${userName}" has been successfully verified! They can now request food.`);
+      await loadDashboard();
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to verify NGO.");
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleToggleStatus = async (userId) => {
+    setActionLoadingId(userId);
+    setError("");
+    setSuccess("");
+
+    try {
+      await api.put(`/admin/users/${userId}/status`);
+      setSuccess("User verification status updated successfully.");
+      await loadDashboard();
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to update user status.");
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleDeleteUser = async (userId, userName) => {
+    const confirmDelete = window.confirm(`Are you sure you want to delete user "${userName}"?`);
+    if (!confirmDelete) return;
+
+    setActionLoadingId(userId);
+    setError("");
+    setSuccess("");
+
+    try {
+      await api.delete(`/users/${userId}`);
+      setSuccess(`User "${userName}" was deleted successfully.`);
+      await loadDashboard();
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to delete user.");
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
   const donorCount = users.filter((item) => item.role === "DONOR").length;
   const ngoCount = users.filter((item) => item.role === "NGO").length;
-  const volunteerCount = users.filter(
-    (item) => item.role === "VOLUNTEER"
-  ).length;
+  const verifiedNgoCount = users.filter((item) => item.role === "NGO" && item.verified).length;
+  const pendingNgoCount = users.filter((item) => item.role === "NGO" && !item.verified).length;
+  const volunteerCount = users.filter((item) => item.role === "VOLUNTEER").length;
 
-  const pendingRequests = requests.filter(
-    (item) => item.status === "PENDING"
-  ).length;
-
-  const deliveredDonations = donations.filter(
-    (item) => item.status === "DELIVERED"
-  ).length;
-
-  const unreadNotifications = notifications.filter(
-    (item) => !item.isRead
-  ).length;
+  const pendingRequests = requests.filter((item) => item.status === "PENDING").length;
+  const deliveredDonations = donations.filter((item) => item.status === "DELIVERED").length;
+  const unreadNotifications = notifications.filter((item) => !item.isRead).length;
 
   const formatDate = (date) => {
     if (!date) return "N/A";
@@ -96,10 +123,11 @@ function AdminDashboard() {
 
   const tabs = [
     { id: "overview", label: "Overview" },
-    { id: "users", label: "Users" },
+    { id: "users", label: "Users & NGOs" },
     { id: "donations", label: "Donations" },
     { id: "requests", label: "Requests" },
     { id: "assignments", label: "Assignments" },
+    { id: "reports", label: "Reports & Analytics" },
     { id: "notifications", label: "Notifications" },
   ];
 
@@ -133,6 +161,7 @@ function AdminDashboard() {
               onClick={() => setActiveTab(tab.id)}
             >
               {tab.label}
+              {tab.id === "users" && pendingNgoCount > 0 && ` (${pendingNgoCount} pending)`}
               {tab.id === "notifications" && ` (${unreadNotifications})`}
             </button>
           ))}
@@ -142,27 +171,27 @@ function AdminDashboard() {
       <main className="admin-main">
         <header className="admin-header">
           <div>
-            <p className="admin-eyebrow">FOODLOOP ADMINISTRATION</p>
+            <p className="admin-eyebrow">FOODLOOP CENTRAL ADMINISTRATION</p>
             <h1>
               {tabs.find((tab) => tab.id === activeTab)?.label}
             </h1>
-            <p>Monitor and manage FoodLoop activities.</p>
+            <p>Monitor operations, manage user accounts, verify NGOs, and generate donation reports.</p>
           </div>
 
           <button className="admin-refresh" onClick={loadDashboard}>
-            Refresh Data
+            ↻ Refresh Data
           </button>
         </header>
 
-        {error && <div className="admin-alert">{error}</div>}
+        {error && <div className="admin-alert" style={{ background: "#fee2e2", color: "#991b1b", border: "1px solid #f87171" }}>{error}</div>}
+        {success && <div className="admin-alert" style={{ background: "#dcfce7", color: "#166534", border: "1px solid #86efac" }}>{success}</div>}
 
         {activeTab === "overview" && (
           <>
             <div className="admin-welcome">
               <h2>Welcome, {user.name}!</h2>
               <p>
-                Here's an overview of your FoodLoop food redistribution
-                platform.
+                Platform overview and vital statistics of the FoodLoop food redistribution network.
               </p>
             </div>
 
@@ -193,14 +222,51 @@ function AdminDashboard() {
               </div>
 
               <div className="admin-stat-card">
-                <span>Volunteer Assignments</span>
-                <h2>{assignments.length}</h2>
+                <span>Pending NGO Approvals</span>
+                <h2 style={{ color: pendingNgoCount > 0 ? "#b45309" : "inherit" }}>{pendingNgoCount}</h2>
               </div>
             </div>
 
+            {pendingNgoCount > 0 && (
+              <div
+                style={{
+                  background: "#fffbeb",
+                  border: "1px solid #fde68a",
+                  borderRadius: "8px",
+                  padding: "16px 20px",
+                  margin: "20px 0",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <div>
+                  <strong style={{ color: "#92400e" }}>
+                    ⚠️ {pendingNgoCount} NGO account{pendingNgoCount > 1 ? "s are" : " is"} waiting for admin verification
+                  </strong>
+                  <p style={{ margin: "4px 0 0", color: "#78350f", fontSize: "14px" }}>
+                    Verified NGOs are granted permission to request surplus food donations.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setActiveTab("users")}
+                  style={{
+                    padding: "8px 16px",
+                    background: "#16834a",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontWeight: "600",
+                  }}
+                >
+                  Review NGOs
+                </button>
+              </div>
+            )}
+
             <section className="admin-section">
               <h2>User Distribution</h2>
-
               <div className="admin-role-grid">
                 <div>
                   <span>Donors</span>
@@ -209,6 +275,9 @@ function AdminDashboard() {
                 <div>
                   <span>NGOs</span>
                   <strong>{ngoCount}</strong>
+                  <small style={{ display: "block", color: "#64748b", marginTop: "4px" }}>
+                    {verifiedNgoCount} verified, {pendingNgoCount} pending
+                  </small>
                 </div>
                 <div>
                   <span>Volunteers</span>
@@ -218,7 +287,7 @@ function AdminDashboard() {
             </section>
 
             <section className="admin-section">
-              <h2>Recent Donations</h2>
+              <h2>Recent Food Donations</h2>
 
               {donations.length === 0 ? (
                 <p className="admin-empty">No donations available.</p>
@@ -232,13 +301,14 @@ function AdminDashboard() {
                         <th>Donor</th>
                         <th>Quantity</th>
                         <th>Status</th>
+                        <th>Expiry</th>
                       </tr>
                     </thead>
                     <tbody>
                       {donations.slice(0, 5).map((item) => (
                         <tr key={item.donationId}>
-                          <td>{item.donationId}</td>
-                          <td>{item.foodName}</td>
+                          <td>#{item.donationId}</td>
+                          <td><strong>{item.foodName}</strong></td>
                           <td>{item.donorName}</td>
                           <td>
                             {item.quantity} {item.quantityUnit}
@@ -248,6 +318,7 @@ function AdminDashboard() {
                               {item.status}
                             </span>
                           </td>
+                          <td>{formatDate(item.expiryTime)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -260,29 +331,119 @@ function AdminDashboard() {
 
         {activeTab === "users" && (
           <section className="admin-section">
-            <h2>Registered Users ({users.length})</h2>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
+              <h2>Registered Users ({users.length})</h2>
+              {pendingNgoCount > 0 && (
+                <span style={{ background: "#fef3c7", color: "#b45309", padding: "4px 12px", borderRadius: "12px", fontSize: "13px", fontWeight: "600" }}>
+                  {pendingNgoCount} NGO(s) pending approval
+                </span>
+              )}
+            </div>
 
             <div className="admin-table-wrapper">
               <table className="admin-table">
                 <thead>
                   <tr>
                     <th>ID</th>
-                    <th>Name</th>
+                    <th>Name / Organization</th>
                     <th>Email</th>
                     <th>Phone</th>
                     <th>Role</th>
+                    <th>Verification</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
 
                 <tbody>
                   {users.map((item) => (
                     <tr key={item.userId}>
-                      <td>{item.userId}</td>
-                      <td>{item.name}</td>
+                      <td>#{item.userId}</td>
+                      <td>
+                        <strong>{item.name}</strong>
+                        {item.organizationName && (
+                          <div style={{ fontSize: "12px", color: "#64748b" }}>
+                            {item.organizationName}
+                          </div>
+                        )}
+                      </td>
                       <td>{item.email}</td>
-                      <td>{item.phone || "N/A"}</td>
+                      <td>{item.phone || "—"}</td>
                       <td>
                         <span className="admin-role">{item.role}</span>
+                      </td>
+                      <td>
+                        {item.role === "NGO" ? (
+                          item.verified ? (
+                            <span style={{ color: "#16834a", fontWeight: "600", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                              ✓ Verified
+                            </span>
+                          ) : (
+                            <span style={{ color: "#b45309", background: "#fef3c7", padding: "3px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: "600" }}>
+                              Pending
+                            </span>
+                          )
+                        ) : (
+                          <span style={{ color: "#64748b", fontSize: "12px" }}>
+                            {item.verified ? "Active" : "Standard"}
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        <div style={{ display: "flex", gap: "6px" }}>
+                          {item.role === "NGO" && !item.verified && (
+                            <button
+                              onClick={() => handleVerifyNgo(item.userId, item.name)}
+                              disabled={actionLoadingId === item.userId}
+                              style={{
+                                background: "#16834a",
+                                color: "white",
+                                border: "none",
+                                padding: "5px 10px",
+                                borderRadius: "4px",
+                                cursor: "pointer",
+                                fontSize: "12px",
+                                fontWeight: "600",
+                              }}
+                            >
+                              {actionLoadingId === item.userId ? "..." : "✓ Verify NGO"}
+                            </button>
+                          )}
+
+                          <button
+                            onClick={() => handleToggleStatus(item.userId)}
+                            disabled={actionLoadingId === item.userId || item.role === "ADMIN"}
+                            style={{
+                              background: "#e2e8f0",
+                              color: "#334155",
+                              border: "none",
+                              padding: "5px 8px",
+                              borderRadius: "4px",
+                              cursor: "pointer",
+                              fontSize: "11px",
+                            }}
+                            title="Toggle verification status"
+                          >
+                            Toggle Status
+                          </button>
+
+                          {item.userId !== user.userId && (
+                            <button
+                              onClick={() => handleDeleteUser(item.userId, item.name)}
+                              disabled={actionLoadingId === item.userId}
+                              style={{
+                                background: "#fee2e2",
+                                color: "#b91c1c",
+                                border: "none",
+                                padding: "5px 8px",
+                                borderRadius: "4px",
+                                cursor: "pointer",
+                                fontSize: "11px",
+                              }}
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -303,8 +464,10 @@ function AdminDashboard() {
                     <th>ID</th>
                     <th>Food Name</th>
                     <th>Donor</th>
+                    <th>Category</th>
                     <th>Quantity</th>
                     <th>Pickup Address</th>
+                    <th>Expiry Time</th>
                     <th>Status</th>
                   </tr>
                 </thead>
@@ -312,13 +475,15 @@ function AdminDashboard() {
                 <tbody>
                   {donations.map((item) => (
                     <tr key={item.donationId}>
-                      <td>{item.donationId}</td>
-                      <td>{item.foodName}</td>
+                      <td>#{item.donationId}</td>
+                      <td><strong>{item.foodName}</strong></td>
                       <td>{item.donorName}</td>
+                      <td>{item.foodCategory || "FOOD"}</td>
                       <td>
                         {item.quantity} {item.quantityUnit}
                       </td>
                       <td>{item.pickupAddress}</td>
+                      <td>{formatDate(item.expiryTime)}</td>
                       <td>
                         <span className={getStatusClass(item.status)}>
                           {item.status}
@@ -341,9 +506,10 @@ function AdminDashboard() {
                 <thead>
                   <tr>
                     <th>Request ID</th>
-                    <th>Food</th>
+                    <th>Food Item</th>
                     <th>NGO</th>
                     <th>Quantity</th>
+                    <th>Message</th>
                     <th>Requested At</th>
                     <th>Status</th>
                   </tr>
@@ -352,10 +518,11 @@ function AdminDashboard() {
                 <tbody>
                   {requests.map((item) => (
                     <tr key={item.requestId}>
-                      <td>{item.requestId}</td>
-                      <td>{item.foodName}</td>
+                      <td>#{item.requestId}</td>
+                      <td><strong>{item.foodName}</strong></td>
                       <td>{item.ngoName}</td>
                       <td>{item.requestedQuantity}</td>
+                      <td>{item.requestMessage || "—"}</td>
                       <td>{formatDate(item.requestedAt)}</td>
                       <td>
                         <span className={getStatusClass(item.status)}>
@@ -372,13 +539,11 @@ function AdminDashboard() {
 
         {activeTab === "assignments" && (
           <section className="admin-section">
-            <h2>Volunteer Assignments ({assignments.length})</h2>
+            <h2>Volunteer Deliveries & Assignments ({assignments.length})</h2>
 
-            {assignmentError && (
-              <div className="admin-alert">{assignmentError}</div>
-            )}
-
-            {assignments.length > 0 && (
+            {assignments.length === 0 ? (
+              <p className="admin-empty">No volunteer assignments recorded yet.</p>
+            ) : (
               <div className="admin-table-wrapper">
                 <table className="admin-table">
                   <thead>
@@ -386,17 +551,21 @@ function AdminDashboard() {
                       <th>Assignment ID</th>
                       <th>Food</th>
                       <th>Volunteer</th>
-                      <th>Pickup</th>
-                      <th>Delivery</th>
+                      <th>Pickup Location</th>
+                      <th>Delivery Location</th>
+                      <th>Pickup Status</th>
+                      <th>Delivery Status</th>
                     </tr>
                   </thead>
 
                   <tbody>
                     {assignments.map((item) => (
                       <tr key={item.assignmentId}>
-                        <td>{item.assignmentId}</td>
-                        <td>{item.foodName}</td>
+                        <td>#{item.assignmentId}</td>
+                        <td><strong>{item.foodName}</strong></td>
                         <td>{item.volunteerName}</td>
+                        <td>{item.pickupAddress || item.donorName}</td>
+                        <td>{item.ngoName}</td>
                         <td>
                           <span className={getStatusClass(item.pickupStatus)}>
                             {item.pickupStatus}
@@ -412,6 +581,128 @@ function AdminDashboard() {
                   </tbody>
                 </table>
               </div>
+            )}
+          </section>
+        )}
+
+        {activeTab === "reports" && (
+          <section className="admin-section">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+              <div>
+                <h2>FoodLoop System Reports & Analytics</h2>
+                <p>System-wide redistribution performance, user growth, and operational metrics.</p>
+              </div>
+              <button
+                onClick={() => window.print()}
+                style={{
+                  padding: "8px 18px",
+                  background: "#1e293b",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontWeight: "600",
+                }}
+              >
+                🖨️ Print Report
+              </button>
+            </div>
+
+            {reports && (
+              <>
+                <div className="admin-stats" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+                  <div className="admin-stat-card">
+                    <span>Total Donations Logged</span>
+                    <h2>{reports.totalDonations}</h2>
+                  </div>
+                  <div className="admin-stat-card">
+                    <span>Delivered Meals</span>
+                    <h2 style={{ color: "#16834a" }}>{reports.deliveredDonations}</h2>
+                  </div>
+                  <div className="admin-stat-card">
+                    <span>Active Listings</span>
+                    <h2>{reports.availableDonations}</h2>
+                  </div>
+                  <div className="admin-stat-card">
+                    <span>Expired Listings</span>
+                    <h2 style={{ color: "#94a3b8" }}>{reports.expiredDonations}</h2>
+                  </div>
+                  <div className="admin-stat-card">
+                    <span>Total NGO Requests</span>
+                    <h2>{reports.totalRequests}</h2>
+                  </div>
+                  <div className="admin-stat-card">
+                    <span>Completed Deliveries</span>
+                    <h2 style={{ color: "#2563eb" }}>{reports.completedDeliveries}</h2>
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "25px", marginTop: "25px" }}>
+                  <div style={{ background: "white", padding: "20px", borderRadius: "10px", boxShadow: "0 2px 4px rgba(0,0,0,0.05)" }}>
+                    <h3 style={{ marginBottom: "15px", color: "#1e293b" }}>User Community Summary</h3>
+                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                      <tbody>
+                        <tr style={{ borderBottom: "1px solid #f1f5f9" }}>
+                          <td style={{ padding: "10px 0" }}>Total Registered Users</td>
+                          <td style={{ textAlign: "right", fontWeight: "bold" }}>{reports.totalUsers}</td>
+                        </tr>
+                        <tr style={{ borderBottom: "1px solid #f1f5f9" }}>
+                          <td style={{ padding: "10px 0" }}>Food Donors</td>
+                          <td style={{ textAlign: "right", fontWeight: "bold" }}>{reports.totalDonors}</td>
+                        </tr>
+                        <tr style={{ borderBottom: "1px solid #f1f5f9" }}>
+                          <td style={{ padding: "10px 0" }}>NGOs (Total)</td>
+                          <td style={{ textAlign: "right", fontWeight: "bold" }}>{reports.totalNgos}</td>
+                        </tr>
+                        <tr style={{ borderBottom: "1px solid #f1f5f9" }}>
+                          <td style={{ padding: "10px 0", color: "#16834a" }}>Verified NGOs</td>
+                          <td style={{ textAlign: "right", fontWeight: "bold", color: "#16834a" }}>{reports.verifiedNgos}</td>
+                        </tr>
+                        <tr style={{ borderBottom: "1px solid #f1f5f9" }}>
+                          <td style={{ padding: "10px 0", color: "#b45309" }}>Pending NGO Verifications</td>
+                          <td style={{ textAlign: "right", fontWeight: "bold", color: "#b45309" }}>{reports.pendingNgos}</td>
+                        </tr>
+                        <tr>
+                          <td style={{ padding: "10px 0" }}>Active Volunteers</td>
+                          <td style={{ textAlign: "right", fontWeight: "bold" }}>{reports.totalVolunteers}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div style={{ background: "white", padding: "20px", borderRadius: "10px", boxShadow: "0 2px 4px rgba(0,0,0,0.05)" }}>
+                    <h3 style={{ marginBottom: "15px", color: "#1e293b" }}>Redistribution Pipeline</h3>
+                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                      <tbody>
+                        <tr style={{ borderBottom: "1px solid #f1f5f9" }}>
+                          <td style={{ padding: "10px 0" }}>Total Requests Submitted</td>
+                          <td style={{ textAlign: "right", fontWeight: "bold" }}>{reports.totalRequests}</td>
+                        </tr>
+                        <tr style={{ borderBottom: "1px solid #f1f5f9" }}>
+                          <td style={{ padding: "10px 0", color: "#d97706" }}>Pending Donor Decisions</td>
+                          <td style={{ textAlign: "right", fontWeight: "bold", color: "#d97706" }}>{reports.pendingRequests}</td>
+                        </tr>
+                        <tr style={{ borderBottom: "1px solid #f1f5f9" }}>
+                          <td style={{ padding: "10px 0", color: "#16834a" }}>Accepted Requests</td>
+                          <td style={{ textAlign: "right", fontWeight: "bold", color: "#16834a" }}>{reports.acceptedRequests}</td>
+                        </tr>
+                        <tr style={{ borderBottom: "1px solid #f1f5f9" }}>
+                          <td style={{ padding: "10px 0", color: "#ef4444" }}>Rejected Requests</td>
+                          <td style={{ textAlign: "right", fontWeight: "bold", color: "#ef4444" }}>{reports.rejectedRequests}</td>
+                        </tr>
+                        <tr style={{ borderBottom: "1px solid #f1f5f9" }}>
+                          <td style={{ padding: "10px 0" }}>Pickups In Transit</td>
+                          <td style={{ textAlign: "right", fontWeight: "bold" }}>{reports.collectedPickups}</td>
+                        </tr>
+                        <tr>
+                          <td style={{ padding: "10px 0", color: "#16834a" }}>Successfully Delivered</td>
+                          <td style={{ textAlign: "right", fontWeight: "bold", color: "#16834a" }}>{reports.completedDeliveries}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
             )}
           </section>
         )}

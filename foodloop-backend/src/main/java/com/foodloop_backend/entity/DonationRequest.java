@@ -1,4 +1,3 @@
-
 package com.foodloop_backend.entity;
 
 import jakarta.persistence.*;
@@ -21,7 +20,7 @@ public class DonationRequest {
     @JoinColumn(name = "ngo_id", nullable = false)
     private User ngo;
 
-    @Column(name = "request_message")
+    @Column(name = "request_message", columnDefinition = "TEXT")
     private String requestMessage;
 
     @Column(name = "requested_quantity", nullable = false)
@@ -38,13 +37,17 @@ public class DonationRequest {
         if (requestedAt == null) {
             requestedAt = LocalDateTime.now();
         }
-        if (status == null) {
+        if (status == null || status.isBlank()) {
             status = "PENDING";
         }
     }
 
     public Long getRequestId() {
         return requestId;
+    }
+
+    public void setRequestId(Long requestId) {
+        this.requestId = requestId;
     }
 
     public FoodDonation getDonation() {
@@ -89,5 +92,9 @@ public class DonationRequest {
 
     public LocalDateTime getRequestedAt() {
         return requestedAt;
+    }
+
+    public void setRequestedAt(LocalDateTime requestedAt) {
+        this.requestedAt = requestedAt;
     }
 }

@@ -1,11 +1,19 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
 
 function Navbar() {
   const navigate = useNavigate();
-  const user = JSON.parse(localStorage.getItem("foodloopUser"));
+  const location = useLocation();
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("foodloopUser");
+    setUser(stored ? JSON.parse(stored) : null);
+  }, [location]);
 
   const logout = () => {
     localStorage.removeItem("foodloopUser");
+    setUser(null);
     navigate("/login");
   };
 
@@ -20,7 +28,25 @@ function Navbar() {
 
         {user ? (
           <>
-            <Link to="/dashboard">Dashboard</Link>
+            <Link to="/dashboard" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              Dashboard
+              <span
+                style={{
+                  background: "#dcfce7",
+                  color: "#15803d",
+                  fontSize: "10px",
+                  fontWeight: "bold",
+                  padding: "2px 6px",
+                  borderRadius: "10px",
+                  textTransform: "uppercase",
+                }}
+              >
+                {user.role}
+              </span>
+            </Link>
+            <span style={{ fontSize: "14px", color: "#64748b" }}>
+              Hi, {user.name?.split(" ")[0]}
+            </span>
             <button className="nav-button" onClick={logout}>
               Logout
             </button>

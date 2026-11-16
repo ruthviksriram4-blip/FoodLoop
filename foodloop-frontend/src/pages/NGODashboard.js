@@ -1,14 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Navigate } from "react-router-dom";
 import api from "../services/api";
 import "../styles/NGODashboard.css";
 
 function NGODashboard() {
-  const user = JSON.parse(localStorage.getItem("foodloopUser"));
+  const [user, setUser] = useState(() => JSON.parse(localStorage.getItem("foodloopUser")));
 
   const [donations, setDonations] = useState([]);
   const [requests, setRequests] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const [assignments, setAssignments] = useState({});
 
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedDonation, setSelectedDonation] = useState(null);
@@ -22,42 +23,81 @@ function NGODashboard() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
-  useEffect(() => {
-    if (user?.userId) {
-      loadDashboard();
-    }
-    // Load data once when the logged-in NGO dashboard opens.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const loadAssignmentsForRequests = async (requestList) => {
+    const acceptedRequests = requestList.filter((r) => r.status === "ACCEPTED");
+    const map = {};
+    await Promise.all(
+      acceptedRequests.map(async (req) => {
+        try {
+          const res = await api.get(`/assignments/request/${req.requestId}`);
+          if (res.data && res.data.assignmentId) {
+            map[req.requestId] = res.data;
+          }
+        } catch {
+          // No assignment
+        }
+      })
+    );
+    setAssignments(map);
+  };
 
-  const loadDashboard = async () => {
+  const loadDashboard = useCallback(async () => {
     setLoading(true);
     setError("");
 
-    const results = await Promise.allSettled([
-      api.get("/donations/available"),
-      api.get(`/requests/ngo/${user.userId}`),
-      api.get(`/notifications/user/${user.userId}`),
-    ]);
+    try {
+      // Check current user profile to refresh verification status
+      try {
+        const profileRes = await api.get("/users/profile");
+        if (profileRes.data) {
+          const updated = { ...user, ...profileRes.data };
+          setUser(updated);
+          localStorage.setItem("foodloopUser", JSON.stringify(updated));
+        }
+      } catch {
+        // Keep cached user
+      }
 
-    if (results[0].status === "fulfilled") {
-      setDonations(results[0].value.data);
-    } else {
-      setError("Unable to load available food donations.");
+      const results = await Promise.allSettled([
+        api.get("/donations/available"),
+        api.get(`/requests/ngo/${user.userId}`),
+        api.get(`/notifications/user/${user.userId}`),
+      ]);
+
+      if (results[0].status === "fulfilled") {
+        setDonations(results[0].value.data);
+      } else {
+        setError("Unable to load available food donations.");
+      }
+
+      if (results[1].status === "fulfilled") {
+        const reqData = results[1].value.data;
+        setRequests(reqData);
+        loadAssignmentsForRequests(reqData);
+      }
+
+      if (results[2].status === "fulfilled") {
+        setNotifications(results[2].value.data);
+      }
+    } catch {
+      setError("An unexpected error occurred loading your dashboard.");
+    } finally {
+      setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.userId]);
 
-    if (results[1].status === "fulfilled") {
-      setRequests(results[1].value.data);
+  useEffect(() => {
+    if (user?.userId && user?.role === "NGO") {
+      loadDashboard();
     }
-
-    if (results[2].status === "fulfilled") {
-      setNotifications(results[2].value.data);
-    }
-
-    setLoading(false);
-  };
+  }, [loadDashboard, user?.role, user?.userId]);
 
   const openRequestForm = (donation) => {
+    if (!user.verified) {
+      setError("Your NGO account is pending Admin verification. You will be able to request food once verified.");
+      return;
+    }
     setSelectedDonation(donation);
     setRequestForm({
       requestedQuantity: "",
@@ -99,7 +139,7 @@ function NGODashboard() {
       });
 
       setSelectedDonation(null);
-      setMessage("Food request submitted successfully.");
+      setMessage("Food request submitted successfully! Waiting for donor approval.");
       await loadDashboard();
       setActiveTab("requests");
     } catch (err) {
@@ -120,10 +160,7 @@ function NGODashboard() {
     setMessage("");
 
     try {
-      await api.put(
-        `/requests/${requestId}/cancel?ngoId=${user.userId}`
-      );
-
+      await api.put(`/requests/${requestId}/cancel?ngoId=${user.userId}`);
       setMessage("Food request cancelled successfully.");
       await loadDashboard();
     } catch (err) {
@@ -146,7 +183,7 @@ function NGODashboard() {
             : notification
         )
       );
-    } catch (err) {
+    } catch {
       setError("Unable to mark notification as read.");
     }
   };
@@ -187,7 +224,7 @@ function NGODashboard() {
           </div>
           <div>
             <strong>{user.name}</strong>
-            <span>NGO Account</span>
+            <span>{user.organizationName || "NGO Organization"}</span>
           </div>
         </div>
 
@@ -256,10 +293,46 @@ function NGODashboard() {
           </div>
 
           <div className="ngo-header-right">
-            <span className="ngo-role-tag">NGO</span>
+            <span
+              className="ngo-role-tag"
+              style={{
+                backgroundColor: user.verified ? "#dcfce7" : "#fef3c7",
+                color: user.verified ? "#15803d" : "#b45309",
+                border: user.verified ? "1px solid #86efac" : "1px solid #fde68a",
+              }}
+            >
+              {user.verified ? "VERIFIED NGO" : "PENDING VERIFICATION"}
+            </span>
             <button onClick={loadDashboard}>↻ Refresh</button>
           </div>
         </header>
+
+        {!user.verified && (
+          <div
+            style={{
+              padding: "16px 20px",
+              background: "#fffbeb",
+              border: "1px solid #fde68a",
+              borderRadius: "8px",
+              marginBottom: "20px",
+              color: "#92400e",
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+            }}
+          >
+            <span style={{ fontSize: "24px" }}>⚠️</span>
+            <div>
+              <strong style={{ display: "block", marginBottom: "4px" }}>
+                Account Pending Admin Verification
+              </strong>
+              <span>
+                Your organization account is being reviewed by the FoodLoop administration team.
+                You can browse available food donations right now; requesting food will be unlocked as soon as an Admin approves your account.
+              </span>
+            </div>
+          </div>
+        )}
 
         {error && <div className="ngo-alert error">{error}</div>}
         {message && <div className="ngo-alert success">{message}</div>}
@@ -275,7 +348,7 @@ function NGODashboard() {
                     <h2>Help us fight food waste!</h2>
                     <p>
                       Find surplus food donations and request meals for
-                      people in need.
+                      communities in need.
                     </p>
                   </div>
 
@@ -372,7 +445,7 @@ function NGODashboard() {
                               <td>{request.foodName}</td>
                               <td>{request.requestedQuantity}</td>
                               <td>
-                                <span className="ngo-status">
+                                <span className={`ngo-status ${String(request.status).toLowerCase()}`}>
                                   {request.status}
                                 </span>
                               </td>
@@ -401,7 +474,7 @@ function NGODashboard() {
 
                 {donations.length === 0 ? (
                   <p className="ngo-empty">
-                    No available food donations found.
+                    No available food donations found at this time. Check back soon!
                   </p>
                 ) : (
                   <div className="ngo-food-grid">
@@ -445,6 +518,7 @@ function NGODashboard() {
                         <button
                           className="ngo-request-button"
                           onClick={() => openRequestForm(donation)}
+                          title={!user.verified ? "Verification required to request food" : ""}
                         >
                           Request Food
                         </button>
@@ -458,7 +532,7 @@ function NGODashboard() {
             {activeTab === "requests" && (
               <section className="ngo-section">
                 <h2>My Donation Requests</h2>
-                <p>Track the status of your submitted requests.</p>
+                <p>Track the status of your submitted requests, volunteer pickups and deliveries.</p>
 
                 {requests.length === 0 ? (
                   <p className="ngo-empty">No requests found.</p>
@@ -471,38 +545,64 @@ function NGODashboard() {
                           <th>Requested Quantity</th>
                           <th>Message</th>
                           <th>Status</th>
+                          <th>Volunteer Delivery Status</th>
                           <th>Date</th>
                           <th>Action</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {requests.map((request) => (
-                          <tr key={request.requestId}>
-                            <td>{request.foodName}</td>
-                            <td>{request.requestedQuantity}</td>
-                            <td>{request.requestMessage || "—"}</td>
-                            <td>
-                              <span className="ngo-status">
-                                {request.status}
-                              </span>
-                            </td>
-                            <td>{formatDate(request.requestedAt)}</td>
-                            <td>
-                              {request.status === "PENDING" ? (
-                                <button
-                                  className="ngo-cancel-button"
-                                  onClick={() =>
-                                    cancelRequest(request.requestId)
-                                  }
-                                >
-                                  Cancel
-                                </button>
-                              ) : (
-                                "—"
-                              )}
-                            </td>
-                          </tr>
-                        ))}
+                        {requests.map((request) => {
+                          const assignment = assignments[request.requestId];
+                          return (
+                            <tr key={request.requestId}>
+                              <td>{request.foodName}</td>
+                              <td>{request.requestedQuantity}</td>
+                              <td>{request.requestMessage || "—"}</td>
+                              <td>
+                                <span className={`ngo-status ${String(request.status).toLowerCase()}`}>
+                                  {request.status}
+                                </span>
+                              </td>
+
+                              <td>
+                                {assignment ? (
+                                  <div style={{ fontSize: "12px", lineHeight: "1.4" }}>
+                                    <div><strong>{assignment.volunteerName}</strong> ({assignment.volunteerPhone || "Volunteer"})</div>
+                                    <div style={{ color: assignment.deliveryStatus === "DELIVERED" ? "#16834a" : "#2563eb" }}>
+                                      {assignment.deliveryStatus === "DELIVERED"
+                                        ? "Delivered to your NGO"
+                                        : assignment.pickupStatus === "COLLECTED"
+                                        ? "Collected • In Transit"
+                                        : "Pickup Scheduled"}
+                                    </div>
+                                  </div>
+                                ) : request.status === "ACCEPTED" ? (
+                                  <span style={{ fontSize: "12px", color: "#d97706" }}>
+                                    Awaiting volunteer assignment
+                                  </span>
+                                ) : (
+                                  "—"
+                                )}
+                              </td>
+
+                              <td>{formatDate(request.requestedAt)}</td>
+                              <td>
+                                {request.status === "PENDING" ? (
+                                  <button
+                                    className="ngo-cancel-button"
+                                    onClick={() =>
+                                      cancelRequest(request.requestId)
+                                    }
+                                  >
+                                    Cancel
+                                  </button>
+                                ) : (
+                                  "—"
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -571,7 +671,7 @@ function NGODashboard() {
 
             <div className="ngo-modal-info">
               Available quantity: {selectedDonation.quantity}{" "}
-              {selectedDonation.quantityUnit}
+              {selectedDonation.quantityUnit} • From: {selectedDonation.donorName}
             </div>
 
             <label>Requested Quantity *</label>
@@ -591,7 +691,7 @@ function NGODashboard() {
               name="requestMessage"
               value={requestForm.requestMessage}
               onChange={handleRequestChange}
-              placeholder="Explain why your NGO needs this food..."
+              placeholder="Explain how your NGO will distribute this food..."
               rows="4"
             />
 

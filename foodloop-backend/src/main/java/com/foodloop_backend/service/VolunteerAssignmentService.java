@@ -1,6 +1,6 @@
-
 package com.foodloop_backend.service;
 
+import com.foodloop_backend.dto.DonationRequestResponse;
 import com.foodloop_backend.dto.VolunteerAssignmentRequest;
 import com.foodloop_backend.dto.VolunteerAssignmentResponse;
 import com.foodloop_backend.entity.DonationRequest;
@@ -47,18 +47,31 @@ public class VolunteerAssignmentService {
         this.currentUserService = currentUserService;
     }
 
-    private VolunteerAssignmentResponse convertToResponse(
-            VolunteerAssignment assignment) {
-
+    private VolunteerAssignmentResponse convertToResponse(VolunteerAssignment assignment) {
         DonationRequest request = assignment.getRequest();
+        FoodDonation donation = request.getDonation();
+        User donor = donation.getDonor();
+        User ngo = request.getNgo();
+        User volunteer = assignment.getVolunteer();
 
         return new VolunteerAssignmentResponse(
                 assignment.getAssignmentId(),
                 request.getRequestId(),
-                request.getDonation().getDonationId(),
-                request.getDonation().getFoodName(),
-                assignment.getVolunteer().getUserId(),
-                assignment.getVolunteer().getName(),
+                donation.getDonationId(),
+                donation.getFoodName(),
+                donation.getFoodCategory(),
+                donation.getQuantity(),
+                donation.getQuantityUnit(),
+                donation.getPickupAddress(),
+                donor.getUserId(),
+                donor.getName(),
+                donor.getPhone(),
+                ngo.getUserId(),
+                ngo.getName(),
+                ngo.getPhone(),
+                ngo.getAddress(),
+                volunteer.getUserId(),
+                volunteer.getName(),
                 assignment.getPickupTime(),
                 assignment.getDeliveryTime(),
                 assignment.getPickupStatus(),
@@ -67,19 +80,22 @@ public class VolunteerAssignmentService {
         );
     }
 
+    // Assign volunteer by donor or admin
     public VolunteerAssignmentResponse assignVolunteer(
             Long donorId,
             VolunteerAssignmentRequest requestData) {
 
         User authenticated = currentUserService.getCurrentUser();
-        if (!currentUserService.isAdmin() && !"DONOR".equals(authenticated.getRole())) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only donors can assign volunteers");
+        if (!currentUserService.isAdmin() && !"DONOR".equals(authenticated.getRole())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only donors or admins can assign volunteers");
+        }
 
-        if (donorId == null || requestData == null
+        if (requestData == null
                 || requestData.getRequestId() == null
                 || requestData.getVolunteerId() == null) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "Donor ID, request ID and volunteer ID are required");
+                    "Request ID and volunteer ID are required");
         }
 
         DonationRequest donationRequest = requestRepository
@@ -99,7 +115,7 @@ public class VolunteerAssignmentService {
         if (!currentUserService.isAdmin() && !donation.getDonor().getUserId().equals(authenticated.getUserId())) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
-                    "You are not authorized to assign this request");
+                    "You are not authorized to assign a volunteer to this request");
         }
 
         if (!"VOLUNTEER".equals(volunteer.getRole())) {
@@ -112,40 +128,120 @@ public class VolunteerAssignmentService {
                 || !"ACCEPTED".equals(donation.getStatus())) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "Only accepted donation requests can be assigned");
+                    "Only accepted donation requests can be assigned to volunteers");
         }
 
-        if (assignmentRepository.existsByRequest_RequestId(
-                donationRequest.getRequestId())) {
+        if (assignmentRepository.existsByRequest_RequestId(donationRequest.getRequestId())) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "A volunteer is already assigned to this request");
         }
 
         VolunteerAssignment assignment = new VolunteerAssignment();
-
         assignment.setRequest(donationRequest);
         assignment.setVolunteer(volunteer);
         assignment.setPickupStatus("PENDING");
         assignment.setDeliveryStatus("PENDING");
 
-        VolunteerAssignment saved =
-                assignmentRepository.save(assignment);
+        VolunteerAssignment saved = assignmentRepository.save(assignment);
 
         notificationService.createNotification(
                 volunteer.getUserId(),
                 "New Volunteer Assignment",
-                "You have been assigned to collect and deliver "
-                        + donation.getFoodName(),
+                "You have been assigned to collect "
+                        + donation.getFoodName() + " from "
+                        + donation.getDonor().getName()
+                        + " and deliver to " + donationRequest.getNgo().getName() + ".",
+                "VOLUNTEER_ASSIGNED"
+        );
+
+        notificationService.createNotification(
+                donationRequest.getNgo().getUserId(),
+                "Volunteer Assigned",
+                volunteer.getName() + " has been assigned to deliver "
+                        + donation.getFoodName() + " to your organization.",
                 "VOLUNTEER_ASSIGNED"
         );
 
         return convertToResponse(saved);
     }
 
-    public List<VolunteerAssignmentResponse> getAllAssignments() {
+    // Self-claim assignment by a volunteer
+    public VolunteerAssignmentResponse claimAssignment(Long requestId, Long volunteerId) {
+        User authenticated = currentUserService.getCurrentUser();
+        if (!currentUserService.isAdmin() && !"VOLUNTEER".equals(authenticated.getRole())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only volunteers can claim pickup assignments");
+        }
 
-        if (!currentUserService.isAdmin()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only admins can view all assignments");
+        DonationRequest donationRequest = requestRepository
+                .findById(requestId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Donation request not found"));
+
+        if (!"ACCEPTED".equals(donationRequest.getStatus())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Only accepted donation requests can be claimed");
+        }
+
+        if (assignmentRepository.existsByRequest_RequestId(donationRequest.getRequestId())) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "This donation has already been assigned to a volunteer");
+        }
+
+        VolunteerAssignment assignment = new VolunteerAssignment();
+        assignment.setRequest(donationRequest);
+        assignment.setVolunteer(authenticated);
+        assignment.setPickupStatus("PENDING");
+        assignment.setDeliveryStatus("PENDING");
+
+        VolunteerAssignment saved = assignmentRepository.save(assignment);
+
+        FoodDonation donation = donationRequest.getDonation();
+
+        notificationService.createNotification(
+                donation.getDonor().getUserId(),
+                "Volunteer Assigned",
+                authenticated.getName() + " has claimed the pickup for " + donation.getFoodName(),
+                "VOLUNTEER_ASSIGNED"
+        );
+
+        notificationService.createNotification(
+                donationRequest.getNgo().getUserId(),
+                "Volunteer Assigned",
+                authenticated.getName() + " has been assigned to deliver "
+                        + donation.getFoodName() + " to your organization.",
+                "VOLUNTEER_ASSIGNED"
+        );
+
+        return convertToResponse(saved);
+    }
+
+    // Get unassigned accepted requests that volunteers can pick up
+    public List<DonationRequestResponse> getUnassignedAcceptedRequests() {
+        List<DonationRequest> accepted = requestRepository.findByStatus("ACCEPTED");
+        return accepted.stream()
+                .filter(req -> !assignmentRepository.existsByRequest_RequestId(req.getRequestId()))
+                .map(req -> new DonationRequestResponse(
+                        req.getRequestId(),
+                        req.getDonation().getDonationId(),
+                        req.getDonation().getFoodName(),
+                        req.getNgo().getUserId(),
+                        req.getNgo().getName(),
+                        req.getRequestMessage(),
+                        req.getRequestedQuantity(),
+                        req.getStatus(),
+                        req.getRequestedAt()
+                ))
+                .toList();
+    }
+
+    public List<VolunteerAssignmentResponse> getAllAssignments() {
+        if (!currentUserService.isAdmin()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only admins can view all assignments");
+        }
 
         return assignmentRepository.findAll()
                 .stream()
@@ -153,11 +249,11 @@ public class VolunteerAssignmentService {
                 .toList();
     }
 
-    public List<VolunteerAssignmentResponse> getAssignmentsByVolunteer(
-            Long volunteerId) {
-
+    public List<VolunteerAssignmentResponse> getAssignmentsByVolunteer(Long volunteerId) {
         User current = currentUserService.getCurrentUser();
-        if (!currentUserService.isAdmin() && (!"VOLUNTEER".equals(current.getRole()) || !current.getUserId().equals(volunteerId))) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You cannot view another volunteer's assignments");
+        if (!currentUserService.isAdmin() && (!"VOLUNTEER".equals(current.getRole()) || !current.getUserId().equals(volunteerId))) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You cannot view another volunteer's assignments");
+        }
 
         return assignmentRepository
                 .findByVolunteer_UserId(currentUserService.isAdmin() ? volunteerId : current.getUserId())
@@ -166,20 +262,22 @@ public class VolunteerAssignmentService {
                 .toList();
     }
 
-    public VolunteerAssignmentResponse getAssignmentById(
-            Long assignmentId) {
-
-        if (!currentUserService.isAdmin()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only admins can access an assignment by ID");
+    public VolunteerAssignmentResponse getAssignmentById(Long assignmentId) {
+        if (!currentUserService.isAdmin()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only admins can access an assignment by ID");
+        }
 
         return convertToResponse(getAssignmentEntity(assignmentId));
     }
 
-    public VolunteerAssignmentResponse markCollected(
-            Long assignmentId, Long volunteerId) {
+    public VolunteerAssignmentResponse getAssignmentByRequestId(Long requestId) {
+        return assignmentRepository.findByRequest_RequestId(requestId)
+                .map(this::convertToResponse)
+                .orElse(null);
+    }
 
-        VolunteerAssignment assignment =
-                getAssignmentEntity(assignmentId);
-
+    public VolunteerAssignmentResponse markCollected(Long assignmentId, Long volunteerId) {
+        VolunteerAssignment assignment = getAssignmentEntity(assignmentId);
         verifyVolunteer(assignment);
 
         if (!"PENDING".equals(assignment.getPickupStatus())) {
@@ -197,8 +295,7 @@ public class VolunteerAssignmentService {
         assignment.setPickupStatus("COLLECTED");
         assignment.setPickupTime(LocalDateTime.now());
 
-        VolunteerAssignment saved =
-                assignmentRepository.save(assignment);
+        VolunteerAssignment saved = assignmentRepository.save(assignment);
 
         DonationRequest request = assignment.getRequest();
         FoodDonation donation = request.getDonation();
@@ -206,7 +303,7 @@ public class VolunteerAssignmentService {
         notificationService.createNotification(
                 donation.getDonor().getUserId(),
                 "Food Collected",
-                "The volunteer has collected "
+                "Volunteer " + assignment.getVolunteer().getName() + " has collected "
                         + donation.getFoodName(),
                 "FOOD_COLLECTED"
         );
@@ -214,21 +311,17 @@ public class VolunteerAssignmentService {
         notificationService.createNotification(
                 request.getNgo().getUserId(),
                 "Food Collected",
-                "The volunteer has collected "
+                "Volunteer " + assignment.getVolunteer().getName() + " has collected "
                         + donation.getFoodName()
-                        + " for your request.",
+                        + " and is on the way to your NGO.",
                 "FOOD_COLLECTED"
         );
 
         return convertToResponse(saved);
     }
 
-    public VolunteerAssignmentResponse markDelivered(
-            Long assignmentId, Long volunteerId) {
-
-        VolunteerAssignment assignment =
-                getAssignmentEntity(assignmentId);
-
+    public VolunteerAssignmentResponse markDelivered(Long assignmentId, Long volunteerId) {
+        VolunteerAssignment assignment = getAssignmentEntity(assignmentId);
         verifyVolunteer(assignment);
 
         if (!"COLLECTED".equals(assignment.getPickupStatus())) {
@@ -252,14 +345,14 @@ public class VolunteerAssignmentService {
         donation.setStatus("DELIVERED");
         donationRepository.save(donation);
 
-        VolunteerAssignment saved =
-                assignmentRepository.save(assignment);
+        VolunteerAssignment saved = assignmentRepository.save(assignment);
 
         notificationService.createNotification(
                 donation.getDonor().getUserId(),
                 "Food Delivered",
                 donation.getFoodName()
-                        + " has been successfully delivered.",
+                        + " has been successfully delivered to "
+                        + request.getNgo().getName() + ".",
                 "FOOD_DELIVERED"
         );
 
@@ -274,9 +367,7 @@ public class VolunteerAssignmentService {
         return convertToResponse(saved);
     }
 
-    private VolunteerAssignment getAssignmentEntity(
-            Long assignmentId) {
-
+    public VolunteerAssignment getAssignmentEntity(Long assignmentId) {
         return assignmentRepository.findById(assignmentId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
@@ -284,9 +375,9 @@ public class VolunteerAssignmentService {
     }
 
     private void verifyVolunteer(VolunteerAssignment assignment) {
-
         User current = currentUserService.getCurrentUser();
-        if (!currentUserService.isAdmin() && (!"VOLUNTEER".equals(current.getRole()) || !assignment.getVolunteer().getUserId().equals(current.getUserId()))) {
+        if (!currentUserService.isAdmin() && (!"VOLUNTEER".equals(current.getRole()) ||
+                !assignment.getVolunteer().getUserId().equals(current.getUserId()))) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
                     "You are not authorized to update this assignment");

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Navigate } from "react-router-dom";
 import api from "../services/api";
 import "../styles/DonorDashboard.css";
@@ -9,12 +9,18 @@ function DonorDashboard() {
   const [donations, setDonations] = useState([]);
   const [requests, setRequests] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const [volunteers, setVolunteers] = useState([]);
+  const [assignments, setAssignments] = useState({});
 
   const [activeTab, setActiveTab] = useState("overview");
   const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+
+  const [assigningRequestId, setAssigningRequestId] = useState(null);
+  const [selectedVolunteerId, setSelectedVolunteerId] = useState("");
+  const [assignLoading, setAssignLoading] = useState(false);
 
   const emptyForm = {
     foodName: "",
@@ -29,40 +35,67 @@ function DonorDashboard() {
 
   const [formData, setFormData] = useState(emptyForm);
 
-  useEffect(() => {
-    if (user?.userId) {
-      loadDashboard();
-    }
-    // Initial dashboard load for the logged-in user.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const loadAssignmentsForRequests = async (requestList) => {
+    const acceptedRequests = requestList.filter((r) => r.status === "ACCEPTED");
+    const map = {};
+    await Promise.all(
+      acceptedRequests.map(async (req) => {
+        try {
+          const res = await api.get(`/assignments/request/${req.requestId}`);
+          if (res.data && res.data.assignmentId) {
+            map[req.requestId] = res.data;
+          }
+        } catch {
+          // No assignment yet
+        }
+      })
+    );
+    setAssignments(map);
+  };
 
-  const loadDashboard = async () => {
+  const loadDashboard = useCallback(async () => {
     setLoading(true);
     setError("");
 
-    const results = await Promise.allSettled([
-      api.get(`/donations/donor/${user.userId}`),
-      api.get(`/requests/donor/${user.userId}`),
-      api.get(`/notifications/user/${user.userId}`),
-    ]);
+    try {
+      const results = await Promise.allSettled([
+        api.get(`/donations/donor/${user.userId}`),
+        api.get(`/requests/donor/${user.userId}`),
+        api.get(`/notifications/user/${user.userId}`),
+        api.get("/users/volunteers"),
+      ]);
 
-    if (results[0].status === "fulfilled") {
-      setDonations(results[0].value.data);
-    } else {
-      setError("Unable to load donations.");
+      if (results[0].status === "fulfilled") {
+        setDonations(results[0].value.data);
+      } else {
+        setError("Unable to load donations.");
+      }
+
+      if (results[1].status === "fulfilled") {
+        const reqData = results[1].value.data;
+        setRequests(reqData);
+        loadAssignmentsForRequests(reqData);
+      }
+
+      if (results[2].status === "fulfilled") {
+        setNotifications(results[2].value.data);
+      }
+
+      if (results[3].status === "fulfilled") {
+        setVolunteers(results[3].value.data);
+      }
+    } catch {
+      setError("An unexpected error occurred loading your dashboard.");
+    } finally {
+      setLoading(false);
     }
+  }, [user?.userId]);
 
-    if (results[1].status === "fulfilled") {
-      setRequests(results[1].value.data);
+  useEffect(() => {
+    if (user?.userId && user?.role === "DONOR") {
+      loadDashboard();
     }
-
-    if (results[2].status === "fulfilled") {
-      setNotifications(results[2].value.data);
-    }
-
-    setLoading(false);
-  };
+  }, [loadDashboard, user?.role, user?.userId]);
 
   const handleChange = (e) => {
     setFormData({
@@ -79,6 +112,7 @@ function DonorDashboard() {
     const payload = {
       ...formData,
       quantity: Number(formData.quantity),
+      preparedAt: formData.preparedAt ? formData.preparedAt : null,
     };
 
     try {
@@ -111,8 +145,8 @@ function DonorDashboard() {
       foodCategory: donation.foodCategory || "VEGETARIAN",
       quantity: donation.quantity || "",
       quantityUnit: donation.quantityUnit || "PACKETS",
-      preparedAt: donation.preparedAt || "",
-      expiryTime: donation.expiryTime || "",
+      preparedAt: donation.preparedAt ? donation.preparedAt.slice(0, 16) : "",
+      expiryTime: donation.expiryTime ? donation.expiryTime.slice(0, 16) : "",
       pickupAddress: donation.pickupAddress || "",
     });
 
@@ -139,30 +173,58 @@ function DonorDashboard() {
     }
   };
 
-const handleRequestDecision = async (requestId, decision) => {
-  setError("");
-  setMessage("");
+  const handleRequestDecision = async (requestId, decision) => {
+    setError("");
+    setMessage("");
 
-  try {
-    await api.put(
-      `/requests/${requestId}/${decision}?donorId=${user.userId}`
-    );
+    try {
+      await api.put(
+        `/requests/${requestId}/${decision}?donorId=${user.userId}`
+      );
 
-    setMessage(
-      decision === "accept"
-        ? "NGO request accepted successfully."
-        : "NGO request rejected successfully."
-    );
+      setMessage(
+        decision === "accept"
+          ? "NGO request accepted successfully! You can now assign a volunteer below."
+          : "NGO request rejected successfully."
+      );
 
-    await loadDashboard();
-  } catch (err) {
-    setError(
-      err.response?.data?.message ||
-        `Unable to ${decision} the NGO request.`
-    );
-  }
-};
+      await loadDashboard();
+    } catch (err) {
+      setError(
+        err.response?.data?.message ||
+          `Unable to ${decision} the NGO request.`
+      );
+    }
+  };
 
+  const handleAssignVolunteer = async (requestId) => {
+    if (!selectedVolunteerId) {
+      setError("Please select a volunteer from the list.");
+      return;
+    }
+
+    setAssignLoading(true);
+    setError("");
+    setMessage("");
+
+    try {
+      await api.post("/assignments", {
+        requestId: requestId,
+        volunteerId: Number(selectedVolunteerId),
+      });
+
+      setMessage("Volunteer assigned successfully! Pickup details notified.");
+      setAssigningRequestId(null);
+      setSelectedVolunteerId("");
+      await loadDashboard();
+    } catch (err) {
+      setError(
+        err.response?.data?.message || "Failed to assign volunteer."
+      );
+    } finally {
+      setAssignLoading(false);
+    }
+  };
 
   const cancelEdit = () => {
     setEditingId(null);
@@ -184,7 +246,7 @@ const handleRequestDecision = async (requestId, decision) => {
             : notification
         )
       );
-    } catch (err) {
+    } catch {
       setError("Unable to mark notification as read.");
     }
   };
@@ -272,10 +334,7 @@ const handleRequestDecision = async (requestId, decision) => {
           </button>
         </nav>
 
-        <button
-          className="sidebar-refresh"
-          onClick={loadDashboard}
-        >
+        <button className="sidebar-refresh" onClick={loadDashboard}>
           ↻ Refresh Data
         </button>
       </aside>
@@ -296,19 +355,14 @@ const handleRequestDecision = async (requestId, decision) => {
 
           <div className="donor-header-right">
             <span className="donor-role">DONOR</span>
-            <button
-              className="refresh-button"
-              onClick={loadDashboard}
-            >
+            <button className="refresh-button" onClick={loadDashboard}>
               ↻ Refresh
             </button>
           </div>
         </header>
 
         {error && <div className="dashboard-alert error">{error}</div>}
-        {message && (
-          <div className="dashboard-alert success">{message}</div>
-        )}
+        {message && <div className="dashboard-alert success">{message}</div>}
 
         {loading ? (
           <div className="dashboard-loading">Loading your dashboard...</div>
@@ -337,7 +391,7 @@ const handleRequestDecision = async (requestId, decision) => {
                   <div className="donor-stat-card">
                     <span>Total Donations</span>
                     <h2>{donations.length}</h2>
-                    <small>All your food donations</small>
+                    <small>All your food listings</small>
                   </div>
 
                   <div className="donor-stat-card">
@@ -390,7 +444,7 @@ const handleRequestDecision = async (requestId, decision) => {
                                 {donation.quantity} {donation.quantityUnit}
                               </td>
                               <td>
-                                <span className="status-badge">
+                                <span className={`status-badge ${String(donation.status).toLowerCase()}`}>
                                   {donation.status}
                                 </span>
                               </td>
@@ -415,7 +469,7 @@ const handleRequestDecision = async (requestId, decision) => {
                         : "Enter Food Donation Details"}
                     </h2>
                     <p>
-                      Provide accurate food and pickup information.
+                      Provide accurate food, quantity and pickup information.
                     </p>
                   </div>
 
@@ -490,13 +544,12 @@ const handleRequestDecision = async (requestId, decision) => {
                     </div>
 
                     <div className="form-field">
-                      <label>Prepared At *</label>
+                      <label>Prepared At (optional)</label>
                       <input
                         type="datetime-local"
                         name="preparedAt"
                         value={formData.preparedAt}
                         onChange={handleChange}
-                        required
                       />
                     </div>
 
@@ -517,7 +570,7 @@ const handleRequestDecision = async (requestId, decision) => {
                         name="pickupAddress"
                         value={formData.pickupAddress}
                         onChange={handleChange}
-                        placeholder="Enter complete pickup address"
+                        placeholder="Enter complete pickup address with contact location"
                         rows="3"
                         required
                       />
@@ -574,7 +627,7 @@ const handleRequestDecision = async (requestId, decision) => {
                           <span className="food-category">
                             {donation.foodCategory || "FOOD"}
                           </span>
-                          <span className="status-badge">
+                          <span className={`status-badge ${String(donation.status).toLowerCase()}`}>
                             {donation.status}
                           </span>
                         </div>
@@ -626,84 +679,184 @@ const handleRequestDecision = async (requestId, decision) => {
               </section>
             )}
 
-           
-{activeTab === "requests" && (
-  <section className="dashboard-section">
-    <h2>NGO Donation Requests</h2>
-    <p>Requests received for your food donations.</p>
+            {activeTab === "requests" && (
+              <section className="dashboard-section">
+                <h2>NGO Donation Requests</h2>
+                <p>Requests received for your food donations. Accept requests and assign volunteers for delivery.</p>
 
-    {requests.length === 0 ? (
-      <p className="empty-state">No NGO requests found.</p>
-    ) : (
-      <div className="donor-table-wrapper">
-        <table className="donor-table">
-          <thead>
-            <tr>
-              <th>Food</th>
-              <th>NGO</th>
-              <th>Requested Quantity</th>
-              <th>Message</th>
-              <th>Status</th>
-              <th>Date</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
+                {requests.length === 0 ? (
+                  <p className="empty-state">No NGO requests found.</p>
+                ) : (
+                  <div className="donor-table-wrapper">
+                    <table className="donor-table">
+                      <thead>
+                        <tr>
+                          <th>Food</th>
+                          <th>NGO</th>
+                          <th>Requested Quantity</th>
+                          <th>Message</th>
+                          <th>Status</th>
+                          <th>Volunteer</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
 
-          <tbody>
-            {requests.map((request) => (
-              <tr key={request.requestId}>
-                <td>{request.foodName}</td>
-                <td>{request.ngoName}</td>
-                <td>{request.requestedQuantity}</td>
-                <td>{request.requestMessage}</td>
+                      <tbody>
+                        {requests.map((request) => {
+                          const assignment = assignments[request.requestId];
+                          return (
+                            <tr key={request.requestId}>
+                              <td>{request.foodName}</td>
+                              <td>{request.ngoName}</td>
+                              <td>{request.requestedQuantity}</td>
+                              <td>{request.requestMessage || "—"}</td>
 
-                <td>
-                  <span className="status-badge">
-                    {request.status}
-                  </span>
-                </td>
+                              <td>
+                                <span className={`status-badge ${String(request.status).toLowerCase()}`}>
+                                  {request.status}
+                                </span>
+                              </td>
 
-                <td>{formatDate(request.requestedAt)}</td>
+                              <td>
+                                {assignment ? (
+                                  <div style={{ fontSize: "12px", lineHeight: "1.4" }}>
+                                    <strong style={{ color: "#16834a" }}>
+                                      {assignment.volunteerName}
+                                    </strong>
+                                    <div>Pickup: {assignment.pickupStatus}</div>
+                                    <div>Delivery: {assignment.deliveryStatus}</div>
+                                  </div>
+                                ) : request.status === "ACCEPTED" ? (
+                                  <span style={{ color: "#d97706", fontSize: "12px", fontWeight: "600" }}>
+                                    Not Assigned Yet
+                                  </span>
+                                ) : (
+                                  "—"
+                                )}
+                              </td>
 
-                <td>
-                  {request.status === "PENDING" ? (
-                    <div className="request-actions">
-                      <button
-                        className="accept-request"
-                        onClick={() =>
-                          handleRequestDecision(
-                            request.requestId,
-                            "accept"
-                          )
-                        }
-                      >
-                        Accept
-                      </button>
+                              <td>
+                                {request.status === "PENDING" && (
+                                  <div className="request-actions">
+                                    <button
+                                      className="accept-request"
+                                      onClick={() =>
+                                        handleRequestDecision(
+                                          request.requestId,
+                                          "accept"
+                                        )
+                                      }
+                                    >
+                                      Accept
+                                    </button>
 
-                      <button
-                        className="reject-request"
-                        onClick={() =>
-                          handleRequestDecision(
-                            request.requestId,
-                            "reject"
-                          )
-                        }
-                      >
-                        Reject
-                      </button>
-                    </div>
-                  ) : (
-                    <span>Completed</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    )}
-  </section>
-)}
+                                    <button
+                                      className="reject-request"
+                                      onClick={() =>
+                                        handleRequestDecision(
+                                          request.requestId,
+                                          "reject"
+                                        )
+                                      }
+                                    >
+                                      Reject
+                                    </button>
+                                  </div>
+                                )}
+
+                                {request.status === "ACCEPTED" && !assignment && (
+                                  <div>
+                                    {assigningRequestId === request.requestId ? (
+                                      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                                        <select
+                                          value={selectedVolunteerId}
+                                          onChange={(e) => setSelectedVolunteerId(e.target.value)}
+                                          style={{ padding: "6px", fontSize: "12px", borderRadius: "4px" }}
+                                        >
+                                          <option value="">Select Volunteer...</option>
+                                          {volunteers.map((v) => (
+                                            <option key={v.userId} value={v.userId}>
+                                              {v.name} ({v.phone || "No phone"})
+                                            </option>
+                                          ))}
+                                        </select>
+                                        <div style={{ display: "flex", gap: "5px" }}>
+                                          <button
+                                            style={{
+                                              padding: "5px 8px",
+                                              background: "#16834a",
+                                              color: "white",
+                                              border: "none",
+                                              borderRadius: "4px",
+                                              cursor: "pointer",
+                                              fontSize: "11px",
+                                            }}
+                                            disabled={assignLoading}
+                                            onClick={() => handleAssignVolunteer(request.requestId)}
+                                          >
+                                            {assignLoading ? "Assigning..." : "Confirm"}
+                                          </button>
+                                          <button
+                                            style={{
+                                              padding: "5px 8px",
+                                              background: "#64748b",
+                                              color: "white",
+                                              border: "none",
+                                              borderRadius: "4px",
+                                              cursor: "pointer",
+                                              fontSize: "11px",
+                                            }}
+                                            onClick={() => {
+                                              setAssigningRequestId(null);
+                                              setSelectedVolunteerId("");
+                                            }}
+                                          >
+                                            Cancel
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        style={{
+                                          padding: "6px 12px",
+                                          background: "#2563eb",
+                                          color: "white",
+                                          border: "none",
+                                          borderRadius: "6px",
+                                          cursor: "pointer",
+                                          fontSize: "12px",
+                                          fontWeight: "600",
+                                        }}
+                                        onClick={() => {
+                                          setAssigningRequestId(request.requestId);
+                                          setSelectedVolunteerId("");
+                                        }}
+                                      >
+                                        + Assign Volunteer
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+
+                                {request.status === "ACCEPTED" && assignment && (
+                                  <span style={{ color: "#16834a", fontWeight: "600", fontSize: "12px" }}>
+                                    Assigned
+                                  </span>
+                                )}
+
+                                {request.status === "REJECTED" && (
+                                  <span style={{ color: "#ef4444", fontSize: "12px" }}>Rejected</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+            )}
 
             {activeTab === "notifications" && (
               <section className="dashboard-section">

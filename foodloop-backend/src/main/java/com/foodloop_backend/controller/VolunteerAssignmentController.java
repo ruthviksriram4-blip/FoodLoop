@@ -1,5 +1,6 @@
 package com.foodloop_backend.controller;
 
+import com.foodloop_backend.dto.DonationRequestResponse;
 import com.foodloop_backend.dto.VolunteerAssignmentRequest;
 import com.foodloop_backend.dto.VolunteerAssignmentResponse;
 import com.foodloop_backend.service.VolunteerAssignmentService;
@@ -34,6 +35,20 @@ public class VolunteerAssignmentController {
         return ResponseEntity.status(HttpStatus.CREATED).body(
                 assignmentService.assignVolunteer(
                         currentUserService.getCurrentUserId(), request));
+    }
+
+    @PostMapping("/{requestId}/claim")
+    public ResponseEntity<VolunteerAssignmentResponse> claimAssignment(
+            @PathVariable Long requestId) {
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+                assignmentService.claimAssignment(
+                        requestId, currentUserService.getCurrentUserId()));
+    }
+
+    @GetMapping("/available")
+    public ResponseEntity<List<DonationRequestResponse>> getAvailableRequests() {
+        return ResponseEntity.ok(assignmentService.getUnassignedAcceptedRequests());
     }
 
     @GetMapping
@@ -76,6 +91,20 @@ public class VolunteerAssignmentController {
 
         return ResponseEntity.ok(
                 assignmentService.getAssignmentById(assignmentId));
+    }
+
+    @GetMapping("/request/{requestId}")
+    public ResponseEntity<VolunteerAssignmentResponse> getAssignmentByRequestId(
+            @PathVariable Long requestId) {
+
+        VolunteerAssignmentResponse assignment =
+                assignmentService.getAssignmentByRequestId(requestId);
+
+        if (assignment == null) {
+            return ResponseEntity.noContent().build();
+        }
+
+        return ResponseEntity.ok(assignment);
     }
 
     @PutMapping("/{assignmentId}/collect")

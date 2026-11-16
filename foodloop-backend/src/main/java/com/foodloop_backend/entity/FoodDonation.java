@@ -1,4 +1,3 @@
-
 package com.foodloop_backend.entity;
 
 import jakarta.persistence.*;
@@ -20,7 +19,7 @@ public class FoodDonation {
     @Column(name = "food_name", nullable = false, length = 150)
     private String foodName;
 
-    @Column(name = "food_description")
+    @Column(name = "food_description", columnDefinition = "TEXT")
     private String foodDescription;
 
     @Column(name = "food_category", length = 100)
@@ -44,8 +43,18 @@ public class FoodDonation {
     @Column(name = "status")
     private String status = "AVAILABLE";
 
-    @Column(name = "created_at", insertable = false, updatable = false)
+    @Column(name = "created_at")
     private LocalDateTime createdAt;
+
+    @PrePersist
+    protected void onCreate() {
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
+        if (status == null || status.isBlank()) {
+            status = "AVAILABLE";
+        }
+    }
 
     public Long getDonationId() { return donationId; }
     public void setDonationId(Long donationId) { this.donationId = donationId; }
@@ -81,4 +90,5 @@ public class FoodDonation {
     public void setStatus(String status) { this.status = status; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

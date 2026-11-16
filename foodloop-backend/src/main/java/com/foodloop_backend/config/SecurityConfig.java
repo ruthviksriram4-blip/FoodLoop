@@ -64,43 +64,45 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
 
                 // Public APIs
-              // Public APIs
-.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-.requestMatchers("/error").permitAll()
-.requestMatchers(
-    "/api/users/register",
-    "/api/users/login"
-).permitAll()
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                .requestMatchers("/error").permitAll()
+                .requestMatchers("/api/health").permitAll()
+                .requestMatchers(
+                    "/api/users/register",
+                    "/api/users/login"
+                ).permitAll()
+
+                // Admin-specific endpoints
+                .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/users/*/verify").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/users/*/toggle-status").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/users/*").hasRole("ADMIN")
 
                 // User management
+                .requestMatchers(HttpMethod.GET, "/api/users/volunteers")
+                    .hasAnyRole("DONOR", "VOLUNTEER", "ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/users/profile")
+                    .authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/users")
                     .hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/users/*")
                     .authenticated()
 
                 // Donations
-                // Donations
-
-.requestMatchers(HttpMethod.GET, "/api/donations")
-    .hasAnyRole("DONOR", "NGO", "VOLUNTEER", "ADMIN")
-
-.requestMatchers(HttpMethod.GET, "/api/donations/available")
-    .hasAnyRole("DONOR", "NGO", "VOLUNTEER", "ADMIN")
-
-.requestMatchers(HttpMethod.GET, "/api/donations/donor/**")
-    .hasAnyRole("DONOR", "ADMIN")
-
-.requestMatchers(HttpMethod.GET, "/api/donations/*")
-    .authenticated()
-
-.requestMatchers(HttpMethod.POST, "/api/donations")
-    .hasAnyRole("DONOR", "ADMIN")
-
-.requestMatchers(HttpMethod.PUT, "/api/donations/**")
-    .hasAnyRole("DONOR", "ADMIN")
-
-.requestMatchers(HttpMethod.DELETE, "/api/donations/**")
-    .hasAnyRole("DONOR", "ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/donations")
+                    .hasAnyRole("DONOR", "NGO", "VOLUNTEER", "ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/donations/available")
+                    .hasAnyRole("DONOR", "NGO", "VOLUNTEER", "ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/donations/donor/**")
+                    .hasAnyRole("DONOR", "ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/donations/*")
+                    .authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/donations")
+                    .hasAnyRole("DONOR", "ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/donations/**")
+                    .hasAnyRole("DONOR", "ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/donations/**")
+                    .hasAnyRole("DONOR", "ADMIN")
 
                 // NGO requests
                 .requestMatchers(HttpMethod.GET, "/api/requests").hasRole("ADMIN")
@@ -108,40 +110,52 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/requests/donor/**").hasAnyRole("DONOR", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/requests")
                     .hasAnyRole("NGO", "ADMIN")
-
                 .requestMatchers(
                     HttpMethod.PUT,
                     "/api/requests/*/accept",
                     "/api/requests/*/reject"
                 ).hasAnyRole("DONOR", "ADMIN")
-
                 .requestMatchers(HttpMethod.PUT, "/api/requests/*/cancel")
                     .hasAnyRole("NGO", "ADMIN")
 
                 // Volunteer assignments
+                .requestMatchers(HttpMethod.GET, "/api/assignments/available")
+                    .hasAnyRole("VOLUNTEER", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/assignments/*/claim")
+                    .hasAnyRole("VOLUNTEER", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/assignments")
                     .hasAnyRole("DONOR", "ADMIN")
-
                 .requestMatchers(
                     HttpMethod.PUT,
                     "/api/assignments/*/collect",
                     "/api/assignments/*/deliver"
                 ).hasAnyRole("VOLUNTEER", "ADMIN")
-
                 .requestMatchers(HttpMethod.GET, "/api/assignments")
                     .hasRole("ADMIN")
-
                 .requestMatchers(HttpMethod.GET, "/api/assignments/volunteer/**")
                     .hasAnyRole("VOLUNTEER", "ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/assignments/**")
+                    .authenticated()
 
                 // Notifications
                 .requestMatchers(HttpMethod.GET, "/api/notifications")
                     .hasRole("ADMIN")
-
                 .requestMatchers(HttpMethod.POST, "/api/notifications")
                     .hasRole("ADMIN")
-                .requestMatchers(HttpMethod.GET, "/api/notifications/user/**", "/api/notifications/unread/**", "/api/notifications/unread-count/**")
-                    .authenticated()
+                .requestMatchers(
+                    HttpMethod.GET,
+                    "/api/notifications/user/**",
+                    "/api/notifications/unread/**",
+                    "/api/notifications/unread-count/**"
+                ).authenticated()
+                .requestMatchers(
+                    HttpMethod.PUT,
+                    "/api/notifications/*/read"
+                ).authenticated()
+                .requestMatchers(
+                    HttpMethod.DELETE,
+                    "/api/notifications/*"
+                ).authenticated()
 
                 // All other API endpoints require authentication
                 .anyRequest().authenticated()
@@ -161,7 +175,7 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
 
         configuration.setAllowedOrigins(
-            List.of("http://localhost:3000")
+            List.of("http://localhost:3000", "http://127.0.0.1:3000")
         );
 
         configuration.setAllowedMethods(

@@ -1,4 +1,3 @@
-
 package com.foodloop_backend.entity;
 
 import jakarta.persistence.*;
@@ -29,11 +28,14 @@ public class Notification {
     @Column(name = "is_read")
     private Boolean isRead = false;
 
-    @Column(name = "created_at", insertable = false, updatable = false)
+    @Column(name = "created_at")
     private LocalDateTime createdAt;
 
     @PrePersist
     protected void onCreate() {
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
         if (isRead == null) {
             isRead = false;
         }
@@ -85,5 +87,9 @@ public class Notification {
 
     public LocalDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
     }
 }

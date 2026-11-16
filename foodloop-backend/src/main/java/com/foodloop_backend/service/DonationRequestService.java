@@ -1,4 +1,3 @@
-
 package com.foodloop_backend.service;
 
 import com.foodloop_backend.dto.DonationRequestRequest;
@@ -43,7 +42,7 @@ public class DonationRequestService {
     }
 
     // Convert entity to response
-    private DonationRequestResponse convertToResponse(
+    public DonationRequestResponse convertToResponse(
             DonationRequest request) {
 
         return new DonationRequestResponse(
@@ -65,10 +64,11 @@ public class DonationRequestService {
             DonationRequestRequest requestData) {
 
         User authenticated = currentUserService.getCurrentUser();
-        if (!currentUserService.isAdmin() && !"NGO".equals(authenticated.getRole())) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only NGOs can request food donations");
+        if (!currentUserService.isAdmin() && !"NGO".equals(authenticated.getRole())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only NGOs can request food donations");
+        }
 
-        if (requestData == null ||
-                requestData.getDonationId() == null) {
+        if (requestData == null || requestData.getDonationId() == null) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Donation ID is required");
@@ -76,14 +76,18 @@ public class DonationRequestService {
 
         User ngo = currentUserService.isAdmin() && ngoId != null
                 ? userRepository.findById(ngoId).orElse(authenticated) : authenticated;
-        /* User ngo = userRepository.findById(ngoId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "NGO not found")); */
 
         if (!"NGO".equals(ngo.getRole())) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
                     "Only NGOs can request food donations");
+        }
+
+        // FR08 / Validation Rule 6: Only verified NGOs can request donations
+        if (!currentUserService.isAdmin() && !Boolean.TRUE.equals(ngo.getVerified())) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Your NGO account has not been verified by an Administrator yet. Only verified NGOs can request food donations.");
         }
 
         FoodDonation donation = donationRepository
@@ -94,11 +98,13 @@ public class DonationRequestService {
         if (!"AVAILABLE".equals(donation.getStatus())) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
-                    "This donation is not available");
+                    "This donation is no longer available");
         }
 
         if (donation.getExpiryTime() == null ||
                 !donation.getExpiryTime().isAfter(LocalDateTime.now())) {
+            donation.setStatus("EXPIRED");
+            donationRepository.save(donation);
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "This food donation has expired");
@@ -121,7 +127,7 @@ public class DonationRequestService {
         boolean duplicateRequest = requestRepository
                 .existsByDonation_DonationIdAndNgo_UserIdAndStatusIn(
                         donation.getDonationId(),
-                        ngoId,
+                        ngo.getUserId(),
                         List.of("PENDING", "ACCEPTED")
                 );
 
@@ -131,22 +137,20 @@ public class DonationRequestService {
                     "You already have a pending or accepted request for this donation");
         }
 
-        if (donation.getDonor().getUserId().equals(ngoId)) {
+        if (donation.getDonor().getUserId().equals(ngo.getUserId())) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "You cannot request your own donation");
         }
 
         DonationRequest request = new DonationRequest();
-
         request.setDonation(donation);
         request.setNgo(ngo);
         request.setRequestMessage(requestData.getRequestMessage());
         request.setRequestedQuantity(quantity);
         request.setStatus("PENDING");
 
-        DonationRequest savedRequest =
-                requestRepository.save(request);
+        DonationRequest savedRequest = requestRepository.save(request);
 
         notificationService.createNotification(
                 donation.getDonor().getUserId(),
@@ -162,7 +166,9 @@ public class DonationRequestService {
 
     // Get all requests
     public List<DonationRequestResponse> getAllRequests() {
-        if (!currentUserService.isAdmin()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only admins can view all requests");
+        if (!currentUserService.isAdmin()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only admins can view all requests");
+        }
 
         return requestRepository.findAll()
                 .stream()
@@ -171,10 +177,11 @@ public class DonationRequestService {
     }
 
     // Get requests by NGO
-    public List<DonationRequestResponse> getRequestsByNgo(
-            Long ngoId) {
+    public List<DonationRequestResponse> getRequestsByNgo(Long ngoId) {
         User current = currentUserService.getCurrentUser();
-        if (!currentUserService.isAdmin() && (!"NGO".equals(current.getRole()) || !current.getUserId().equals(ngoId))) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You cannot view another NGO's requests");
+        if (!currentUserService.isAdmin() && (!"NGO".equals(current.getRole()) || !current.getUserId().equals(ngoId))) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You cannot view another NGO's requests");
+        }
         return requestRepository.findByNgo_UserId(currentUserService.isAdmin() ? ngoId : current.getUserId())
                 .stream()
                 .map(this::convertToResponse)
@@ -182,11 +189,11 @@ public class DonationRequestService {
     }
 
     // Get requests by donor
-    public List<DonationRequestResponse> getRequestsByDonor(
-            Long donorId) {
-
+    public List<DonationRequestResponse> getRequestsByDonor(Long donorId) {
         User current = currentUserService.getCurrentUser();
-        if (!currentUserService.isAdmin() && (!"DONOR".equals(current.getRole()) || !current.getUserId().equals(donorId))) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You cannot view another donor's requests");
+        if (!currentUserService.isAdmin() && (!"DONOR".equals(current.getRole()) || !current.getUserId().equals(donorId))) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You cannot view another donor's requests");
+        }
 
         return requestRepository
                 .findByDonation_Donor_UserId(currentUserService.isAdmin() ? donorId : current.getUserId())
@@ -196,19 +203,17 @@ public class DonationRequestService {
     }
 
     // Get request by ID
-    public DonationRequestResponse getRequestById(
-            Long requestId) {
-
+    public DonationRequestResponse getRequestById(Long requestId) {
         return convertToResponse(getRequestEntity(requestId));
     }
 
     // Accept NGO request
-    public DonationRequestResponse acceptRequest(
-            Long requestId, Long donorId) {
+    public DonationRequestResponse acceptRequest(Long requestId, Long donorId) {
 
         DonationRequest request = getRequestEntity(requestId);
 
-        if (!currentUserService.isAdmin() && (!"DONOR".equals(currentUserService.getCurrentUser().getRole()) || !request.getDonation().getDonor().getUserId().equals(currentUserService.getCurrentUserId()))) {
+        if (!currentUserService.isAdmin() && (!"DONOR".equals(currentUserService.getCurrentUser().getRole()) ||
+                !request.getDonation().getDonor().getUserId().equals(currentUserService.getCurrentUserId()))) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
                     "You cannot manage this donation request");
@@ -230,6 +235,8 @@ public class DonationRequestService {
 
         if (donation.getExpiryTime() == null ||
                 !donation.getExpiryTime().isAfter(LocalDateTime.now())) {
+            donation.setStatus("EXPIRED");
+            donationRepository.save(donation);
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Food donation has expired");
@@ -239,8 +246,7 @@ public class DonationRequestService {
         request.setStatus("ACCEPTED");
         donation.setStatus("ACCEPTED");
 
-        DonationRequest savedRequest =
-                requestRepository.save(request);
+        DonationRequest savedRequest = requestRepository.save(request);
 
         notificationService.createNotification(
                 request.getNgo().getUserId(),
@@ -251,18 +257,15 @@ public class DonationRequestService {
                 "REQUEST_ACCEPTED"
         );
 
-        // Reject other pending requests
+        // Reject other pending requests for the same donation
         List<DonationRequest> otherRequests =
-                requestRepository.findByDonation_DonationId(
-                        donation.getDonationId());
+                requestRepository.findByDonation_DonationId(donation.getDonationId());
 
         for (DonationRequest otherRequest : otherRequests) {
-
             if (!otherRequest.getRequestId().equals(requestId)
                     && "PENDING".equals(otherRequest.getStatus())) {
 
                 otherRequest.setStatus("REJECTED");
-
                 requestRepository.save(otherRequest);
 
                 notificationService.createNotification(
@@ -270,8 +273,7 @@ public class DonationRequestService {
                         "Food Request Rejected",
                         "Your request for "
                                 + donation.getFoodName()
-                                + " was rejected because the donation "
-                                + "was accepted by another NGO.",
+                                + " was rejected because the donation was accepted by another NGO.",
                         "REQUEST_REJECTED"
                 );
             }
@@ -281,12 +283,12 @@ public class DonationRequestService {
     }
 
     // Reject NGO request
-    public DonationRequestResponse rejectRequest(
-            Long requestId, Long donorId) {
+    public DonationRequestResponse rejectRequest(Long requestId, Long donorId) {
 
         DonationRequest request = getRequestEntity(requestId);
 
-        if (!currentUserService.isAdmin() && (!"DONOR".equals(currentUserService.getCurrentUser().getRole()) || !request.getDonation().getDonor().getUserId().equals(currentUserService.getCurrentUserId()))) {
+        if (!currentUserService.isAdmin() && (!"DONOR".equals(currentUserService.getCurrentUser().getRole()) ||
+                !request.getDonation().getDonor().getUserId().equals(currentUserService.getCurrentUserId()))) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
                     "You cannot manage this donation request");
@@ -299,9 +301,7 @@ public class DonationRequestService {
         }
 
         request.setStatus("REJECTED");
-
-        DonationRequest savedRequest =
-                requestRepository.save(request);
+        DonationRequest savedRequest = requestRepository.save(request);
 
         notificationService.createNotification(
                 request.getNgo().getUserId(),
@@ -316,12 +316,12 @@ public class DonationRequestService {
     }
 
     // Cancel NGO request
-    public DonationRequestResponse cancelRequest(
-            Long requestId, Long ngoId) {
+    public DonationRequestResponse cancelRequest(Long requestId, Long ngoId) {
 
         DonationRequest request = getRequestEntity(requestId);
 
-        if (!currentUserService.isAdmin() && (!"NGO".equals(currentUserService.getCurrentUser().getRole()) || !request.getNgo().getUserId().equals(currentUserService.getCurrentUserId()))) {
+        if (!currentUserService.isAdmin() && (!"NGO".equals(currentUserService.getCurrentUser().getRole()) ||
+                !request.getNgo().getUserId().equals(currentUserService.getCurrentUserId()))) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
                     "You cannot cancel this request");
@@ -334,9 +334,7 @@ public class DonationRequestService {
         }
 
         request.setStatus("CANCELLED");
-
-        DonationRequest savedRequest =
-                requestRepository.save(request);
+        DonationRequest savedRequest = requestRepository.save(request);
 
         notificationService.createNotification(
                 request.getDonation().getDonor().getUserId(),
@@ -351,8 +349,7 @@ public class DonationRequestService {
     }
 
     // Find request entity
-    private DonationRequest getRequestEntity(Long requestId) {
-
+    public DonationRequest getRequestEntity(Long requestId) {
         return requestRepository.findById(requestId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,

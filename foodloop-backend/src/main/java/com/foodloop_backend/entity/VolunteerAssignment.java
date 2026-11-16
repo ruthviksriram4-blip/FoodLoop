@@ -1,4 +1,3 @@
-
 package com.foodloop_backend.entity;
 
 import jakarta.persistence.*;
@@ -33,11 +32,28 @@ public class VolunteerAssignment {
     @Column(name = "delivery_status")
     private String deliveryStatus = "PENDING";
 
-    @Column(name = "assigned_at", insertable = false, updatable = false)
+    @Column(name = "assigned_at")
     private LocalDateTime assignedAt;
+
+    @PrePersist
+    protected void onCreate() {
+        if (assignedAt == null) {
+            assignedAt = LocalDateTime.now();
+        }
+        if (pickupStatus == null) {
+            pickupStatus = "PENDING";
+        }
+        if (deliveryStatus == null) {
+            deliveryStatus = "PENDING";
+        }
+    }
 
     public Long getAssignmentId() {
         return assignmentId;
+    }
+
+    public void setAssignmentId(Long assignmentId) {
+        this.assignmentId = assignmentId;
     }
 
     public DonationRequest getRequest() {
@@ -90,5 +106,9 @@ public class VolunteerAssignment {
 
     public LocalDateTime getAssignedAt() {
         return assignedAt;
+    }
+
+    public void setAssignedAt(LocalDateTime assignedAt) {
+        this.assignedAt = assignedAt;
     }
 }

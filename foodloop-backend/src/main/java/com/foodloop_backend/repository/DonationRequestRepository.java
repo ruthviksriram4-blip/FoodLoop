@@ -1,4 +1,3 @@
-
 package com.foodloop_backend.repository;
 
 import com.foodloop_backend.entity.DonationRequest;
@@ -14,6 +13,8 @@ public interface DonationRequestRepository
     List<DonationRequest> findByDonation_Donor_UserId(Long donorId);
 
     List<DonationRequest> findByDonation_DonationId(Long donationId);
+
+    List<DonationRequest> findByStatus(String status);
 
     boolean existsByDonation_DonationIdAndNgo_UserIdAndStatusIn(
             Long donationId,

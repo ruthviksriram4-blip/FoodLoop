@@ -1,4 +1,3 @@
-
 package com.foodloop_backend.entity;
 
 import jakarta.persistence.*;
@@ -13,8 +12,8 @@ public class User {
     @Column(name = "user_id")
     private Long userId;
 
-   @Column(name = "full_name", nullable = false)
-   private String name;
+    @Column(name = "full_name", nullable = false)
+    private String name;
 
     @Column(name = "email", nullable = false, unique = true)
     private String email;
@@ -39,6 +38,17 @@ public class User {
 
     @Column(name = "verified")
     private Boolean verified;
+
+    @PrePersist
+    protected void onCreate() {
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
+        if (verified == null) {
+            // By default, DONOR and VOLUNTEER don't require manual approval, but NGOs do
+            verified = !"NGO".equalsIgnoreCase(role);
+        }
+    }
 
     public User() {
     }
@@ -106,19 +116,20 @@ public class User {
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
     }
+
     public String getOrganizationName() {
-    return organizationName;
-}
+        return organizationName;
+    }
 
-public void setOrganizationName(String organizationName) {
-    this.organizationName = organizationName;
+    public void setOrganizationName(String organizationName) {
+        this.organizationName = organizationName;
+    }
 
-}
-public Boolean getVerified() {
-    return verified;
-}
+    public Boolean getVerified() {
+        return verified;
+    }
 
-public void setVerified(Boolean verified) {
-    this.verified = verified;
-}
+    public void setVerified(Boolean verified) {
+        this.verified = verified;
+    }
 }

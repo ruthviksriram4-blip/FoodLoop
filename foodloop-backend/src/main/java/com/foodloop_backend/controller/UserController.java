@@ -5,6 +5,7 @@ import com.foodloop_backend.dto.LoginRequest;
 import com.foodloop_backend.dto.LoginResponse;
 import com.foodloop_backend.dto.UserResponse;
 import com.foodloop_backend.entity.User;
+import com.foodloop_backend.service.CurrentUserService;
 import com.foodloop_backend.service.UserService;
 
 import org.springframework.web.bind.annotation.*;
@@ -13,17 +14,20 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/users")
-@CrossOrigin(origins = "http://localhost:3000")
+@CrossOrigin(origins = "*")
 public class UserController {
 
     private final UserService userService;
     private final JwtService jwtService;
+    private final CurrentUserService currentUserService;
 
     public UserController(
             UserService userService,
-            JwtService jwtService) {
+            JwtService jwtService,
+            CurrentUserService currentUserService) {
         this.userService = userService;
         this.jwtService = jwtService;
+        this.currentUserService = currentUserService;
     }
 
     private UserResponse convertToResponse(User user) {
@@ -52,14 +56,42 @@ public class UserController {
                 .toList();
     }
 
+    @GetMapping("/volunteers")
+    public List<UserResponse> getVolunteers() {
+        return userService.getVolunteers()
+                .stream()
+                .map(this::convertToResponse)
+                .toList();
+    }
+
+    @GetMapping("/profile")
+    public UserResponse getProfile() {
+        return convertToResponse(currentUserService.getCurrentUser());
+    }
+
     @GetMapping("/{id}")
     public UserResponse getUserById(@PathVariable Long id) {
-
         User user = userService.getUserById(id)
                 .orElseThrow(() ->
                     new RuntimeException("User not found"));
 
         return convertToResponse(user);
+    }
+
+    @PutMapping("/{id}/verify")
+    public UserResponse verifyUser(@PathVariable Long id) {
+        return convertToResponse(userService.verifyUser(id));
+    }
+
+    @PutMapping("/{id}/toggle-status")
+    public UserResponse toggleUserStatus(@PathVariable Long id) {
+        return convertToResponse(userService.toggleVerification(id));
+    }
+
+    @DeleteMapping("/{id}")
+    public String deleteUser(@PathVariable Long id) {
+        userService.deleteUser(id);
+        return "User deleted successfully!";
     }
 
     @PostMapping("/login")
