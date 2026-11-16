@@ -1,3 +1,51 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  /* Nature Glassmorphism: Emerald + Soft Sage Palette */
+  --emerald-950: #042f24;
+  --emerald-900: #064e3b;
+  --emerald-800: #065f46;
+  --emerald-700: #047857;
+  --emerald-600: #059669;
+  --emerald-500: #10b981;
+  --emerald-400: #34d399;
+  --emerald-300: #6ee7b7;
+  --emerald-200: #a7f3d0;
+  --emerald-100: #d1fae5;
+  --emerald-50:  #ecfdf5;
+
+  --sage-900: #192e26;
+  --sage-800: #244137;
+  --sage-700: #33594c;
+  --sage-600: #497566;
+  --sage-500: #649483;
+  --sage-400: #88b3a3;
+  --sage-300: #b4d2c7;
+  --sage-200: #d7e7e1;
+  --sage-100: #eaf3f0;
+  --sage-50:  #f4f9f7;
+
+  /* Glassmorphism Specs */
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-bg-hover: rgba(255, 255, 255, 0.88);
+  --glass-bg-subtle: rgba(255, 255, 255, 0.45);
+  --glass-border: rgba(255, 255, 255, 0.85);
+  --glass-border-emerald: rgba(16, 185, 129, 0.22);
+  --glass-shadow: 0 12px 36px 0 rgba(6, 78, 59, 0.08);
+  --glass-shadow-hover: 0 18px 48px 0 rgba(6, 78, 59, 0.14);
+  --glass-blur: blur(20px) saturate(190%);
+  --glass-sidebar: linear-gradient(175deg, rgba(6, 78, 59, 0.92) 0%, rgba(4, 47, 36, 0.96) 100%);
+
+  /* Text & Accents */
+  --text-main: #0f241d;
+  --text-muted: #4e6b61;
+  --text-light: #7b998f;
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -5,9 +53,20 @@
 }
 
 body {
-  font-family: Arial, Helvetica, sans-serif;
-  background: #f8faf9;
-  color: #1e293b;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: var(--text-main);
+  background-color: #eaf2ed;
+  background-image: 
+    radial-gradient(circle at 10% 15%, rgba(167, 243, 208, 0.5) 0%, transparent 45%),
+    radial-gradient(circle at 88% 12%, rgba(52, 211, 153, 0.3) 0%, transparent 40%),
+    radial-gradient(circle at 50% 85%, rgba(110, 231, 183, 0.35) 0%, transparent 55%),
+    radial-gradient(circle at 90% 80%, rgba(167, 243, 208, 0.4) 0%, transparent 45%),
+    linear-gradient(135deg, #eef7f2 0%, #e1ede6 100%);
+  background-attachment: fixed;
+  background-size: cover;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 button,
@@ -19,4 +78,24 @@ textarea {
 
 a {
   text-decoration: none;
+  color: inherit;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(234, 243, 240, 0.5);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(16, 185, 129, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(16, 185, 129, 0.5);
 }
