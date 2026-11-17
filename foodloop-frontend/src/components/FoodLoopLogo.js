@@ -1,5 +1,4 @@
-function FoodLoopLogo({ size = 36, showText = true, variant = "light" }) {
-  // variant: "light" (for white/sage glass background) or "dark" (for deep emerald sidebars)
+function FoodLoopLogo({ size = 40, showText = true, variant = "light" }) {
   const isDark = variant === "dark";
 
   return (
@@ -8,82 +7,77 @@ function FoodLoopLogo({ size = 36, showText = true, variant = "light" }) {
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: "10px",
+        gap: "12px",
         textDecoration: "none",
         userSelect: "none",
       }}
     >
-      {/* Nature Glassmorphic SVG Logo Mark */}
+      {/* Nature Glassmorphic SVG Logo Badge */}
       <svg
         width={size}
         height={size}
-        viewBox="0 0 48 48"
+        viewBox="0 0 64 64"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
+        className="foodloop-icon-svg"
         style={{
           flexShrink: 0,
-          filter: "drop-shadow(0 4px 10px rgba(5, 150, 105, 0.25))",
-          transition: "transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
+          filter: "drop-shadow(0 4px 12px rgba(5, 150, 105, 0.35))",
+          transition: "all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
         }}
-        className="foodloop-icon-svg"
       >
         <defs>
-          <linearGradient id={`flEmGrad-${size}`} x1="0%" y1="100%" x2="100%" y2="0%">
+          <linearGradient id={`bgGrad-${size}`} x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stop-color="#047857" />
-            <stop offset="50%" stop-color="#10b981" />
-            <stop offset="100%" stop-color="#34d399" />
-          </linearGradient>
-
-          <linearGradient id={`flSageGrad-${size}`} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="#6ee7b7" />
-            <stop offset="100%" stop-color="#a7f3d0" />
-          </linearGradient>
-
-          <linearGradient id={`flBowlGrad-${size}`} x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stop-color="#059669" />
+            <stop offset="50%" stop-color="#059669" />
             <stop offset="100%" stop-color="#10b981" />
           </linearGradient>
 
-          <filter id={`flGlow-${size}`} x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="#10b981" flood-opacity="0.3" />
-          </filter>
+          <linearGradient id={`leafGrad1-${size}`} x1="0%" y1="100%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#ffffff" />
+            <stop offset="100%" stop-color="#d1fae5" />
+          </linearGradient>
+
+          <linearGradient id={`leafGrad2-${size}`} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#6ee7b7" />
+            <stop offset="100%" stop-color="#a7f3d0" />
+          </linearGradient>
         </defs>
 
-        {/* Outer Circular Halo Ring */}
-        <circle
-          cx="24"
-          cy="24"
-          r="22"
-          fill={isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(209, 250, 229, 0.7)"}
-          stroke={isDark ? "rgba(167, 243, 208, 0.3)" : "rgba(16, 185, 129, 0.35)"}
-          strokeWidth="1.5"
+        {/* Squircle Badge Background */}
+        <rect
+          x="3"
+          y="3"
+          width="58"
+          height="58"
+          rx="18"
+          fill={`url(#bgGrad-${size})`}
+          stroke={isDark ? "rgba(167, 243, 208, 0.5)" : "rgba(255, 255, 255, 0.8)"}
+          strokeWidth="2"
         />
 
-        {/* Redistribution Loop Bow (Organic Curve Arc) */}
+        {/* Recycling / Loop Arrow Leaves */}
+        {/* Left Leaf / Arrow */}
         <path
-          d="M13 23 C13 15, 21 11, 28 13 C35 15, 36 22, 30 27 C24 32, 17 28, 16 34 C15 39, 23 41, 31 39 C34 38, 36 36, 37 34"
-          stroke={`url(#flEmGrad-${size})`}
-          strokeWidth="3.2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          filter={`url(#flGlow-${size})`}
+          d="M32 20 C23 12, 11 18, 14 29 C16 35, 25 36, 32 28 C26 27, 20 24, 20 20 C20 16, 27 16, 32 20 Z"
+          fill={`url(#leafGrad1-${size})`}
         />
 
-        {/* Embracing Sage Leaf */}
+        {/* Right Leaf / Arrow */}
         <path
-          d="M24 12 C28 14, 31 18, 29 23 C26 21, 23 18, 24 12 Z"
-          fill={`url(#flSageGrad-${size})`}
+          d="M32 20 C41 12, 53 18, 50 29 C48 35, 39 36, 32 28 C38 27, 44 24, 44 20 C44 16, 37 16, 32 20 Z"
+          fill={`url(#leafGrad2-${size})`}
         />
 
-        {/* Caring Food Bowl Silhouette (Bottom Foundation) */}
+        {/* Food Sharing Bowl (Bottom Base) */}
         <path
-          d="M17 29 C17 37, 31 37, 31 29 Z"
-          fill={`url(#flBowlGrad-${size})`}
-          opacity="0.9"
+          d="M19 37 C19 47, 45 47, 45 37 Z"
+          fill="#ffffff"
+          opacity="0.95"
         />
 
-        {/* Nourishing Heart Sprout Core */}
-        <circle cx="24" cy="20" r="2.6" fill={isDark ? "#a7f3d0" : "#ffffff"} />
+        {/* Heart Seed / Sprout Dot */}
+        <circle cx="32" cy="20" r="3.2" fill="#ffffff" />
       </svg>
 
       {/* Brand Typography */}
@@ -92,7 +86,7 @@ function FoodLoopLogo({ size = 36, showText = true, variant = "light" }) {
           className="foodloop-brand-text"
           style={{
             fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif",
-            fontSize: size > 32 ? "24px" : "20px",
+            fontSize: size > 32 ? "26px" : "21px",
             fontWeight: 800,
             letterSpacing: "-0.6px",
             display: "inline-flex",
@@ -114,13 +108,13 @@ function FoodLoopLogo({ size = 36, showText = true, variant = "light" }) {
           </span>
           <span
             style={{
-              width: "6px",
-              height: "6px",
+              width: "7px",
+              height: "7px",
               borderRadius: "50%",
               backgroundColor: isDark ? "#6ee7b7" : "#10b981",
-              marginLeft: "3px",
+              marginLeft: "4px",
               display: "inline-block",
-              boxShadow: "0 0 8px rgba(16, 185, 129, 0.8)",
+              boxShadow: "0 0 10px rgba(16, 185, 129, 0.9)",
             }}
           />
         </span>
