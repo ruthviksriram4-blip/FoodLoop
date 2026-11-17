@@ -13,18 +13,53 @@ function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const demoAccounts = [
-    { label: "Donor", email: "donor@foodloop.com", pass: "Donor@123", role: "DONOR", desc: "Grand Feast Hotel" },
-    { label: "Verified NGO", email: "ngo@foodloop.com", pass: "Ngo@123", role: "NGO", desc: "Feed The Hungry" },
-    { label: "Volunteer", email: "volunteer@foodloop.com", pass: "Volunteer@123", role: "VOLUNTEER", desc: "Alex Sharma" },
-    { label: "Admin", email: "admin@foodloop.com", pass: "Admin@123", role: "ADMIN", desc: "Central Oversight" },
+  const registeredAccounts = [
+    {
+      role: "DONOR",
+      name: "Grand Feast Hotel",
+      email: "donor@foodloop.com",
+      password: "Donor@123",
+      altPass: "donor123",
+      tag: "Surplus Food Donor",
+    },
+    {
+      role: "NGO",
+      name: "Feed The Hungry Foundation",
+      email: "ngo@foodloop.com",
+      password: "Ngo@123",
+      altPass: "ngo123",
+      tag: "Verified NGO",
+    },
+    {
+      role: "VOLUNTEER",
+      name: "Alex Sharma",
+      email: "volunteer@foodloop.com",
+      password: "Volunteer@123",
+      altPass: "volunteer123",
+      tag: "Food Pickup & Delivery",
+    },
+    {
+      role: "ADMIN",
+      name: "System Administrator",
+      email: "admin@foodloop.com",
+      password: "Admin@123",
+      altPass: "admin123",
+      tag: "Central Platform Admin",
+    },
+    {
+      role: "DONOR",
+      name: "Ruthvik Sriram",
+      email: "ruthviksriram4@gmail.com",
+      password: "Password@123",
+      altPass: "Ruthvik@2007",
+      tag: "Personal Account",
+    },
   ];
 
-  // 1-Click Auto Login with pre-seeded demo accounts
-  const handleQuickDemoLogin = async (acc) => {
+  const handleQuickLogin = async (acc) => {
     setFormData({
       email: acc.email,
-      password: acc.pass,
+      password: acc.password,
     });
     setError("");
     setLoading(true);
@@ -32,7 +67,7 @@ function LoginPage() {
     try {
       const response = await api.post("/users/login", {
         email: acc.email.trim(),
-        password: acc.pass.trim(),
+        password: acc.password.trim(),
       });
 
       localStorage.setItem(
@@ -46,11 +81,19 @@ function LoginPage() {
       navigate("/dashboard");
     } catch (err) {
       setError(
-        err.response?.data?.message || "Invalid email or password."
+        err.response?.data?.message || "Invalid email or password. Please check your credentials."
       );
     } finally {
       setLoading(false);
     }
+  };
+
+  const fillFormOnly = (acc) => {
+    setFormData({
+      email: acc.email,
+      password: acc.password,
+    });
+    setError("");
   };
 
   const handleChange = (e) => {
@@ -91,46 +134,11 @@ function LoginPage() {
 
   return (
     <div className="auth-page">
-      <div className="auth-card">
+      <div className="auth-card" style={{ maxWidth: "520px" }}>
         <h1>Welcome Back</h1>
         <p>Login to your FoodLoop account to manage surplus food redistribution.</p>
 
         {error && <div className="error-message">{error}</div>}
-
-        {/* 1-Click Instant Demo Login Buttons */}
-        <div style={{ marginBottom: "22px", padding: "14px 16px", background: "rgba(209, 250, 229, 0.6)", border: "1px solid rgba(167, 243, 208, 0.8)", borderRadius: "12px" }}>
-          <p style={{ fontSize: "12px", fontWeight: "800", color: "#065f46", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
-            <span>⚡</span> 1-Click Instant Demo Login:
-          </p>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-            {demoAccounts.map((acc) => (
-              <button
-                key={acc.label}
-                type="button"
-                onClick={() => handleQuickDemoLogin(acc)}
-                disabled={loading}
-                style={{
-                  background: "rgba(255, 255, 255, 0.9)",
-                  border: "1px solid rgba(52, 211, 153, 0.4)",
-                  borderRadius: "8px",
-                  padding: "8px 10px",
-                  fontSize: "12px",
-                  cursor: "pointer",
-                  color: "#065f46",
-                  fontWeight: "700",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "flex-start",
-                  transition: "all 0.2s ease",
-                  boxShadow: "0 2px 6px rgba(6, 78, 59, 0.05)",
-                }}
-              >
-                <span>{acc.label} ➔</span>
-                <span style={{ fontSize: "10px", fontWeight: "500", color: "#649483" }}>{acc.desc}</span>
-              </button>
-            ))}
-          </div>
-        </div>
 
         <form onSubmit={handleSubmit}>
           <label>Email Address</label>
@@ -155,12 +163,89 @@ function LoginPage() {
             autoComplete="current-password"
           />
 
-          <button type="submit" className="primary-button" disabled={loading} style={{ width: "100%", marginTop: "18px" }}>
+          <button type="submit" className="primary-button" disabled={loading} style={{ width: "100%", marginTop: "16px" }}>
             {loading ? "Logging in..." : "Login"}
           </button>
         </form>
 
-        <p className="auth-footer" style={{ marginTop: "24px" }}>
+        {/* Registered Credentials & 1-Click Login List */}
+        <div style={{ marginTop: "24px", paddingTop: "18px", borderTop: "1px solid rgba(6, 78, 59, 0.12)" }}>
+          <p style={{ fontSize: "12px", fontWeight: "800", color: "#064e3b", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "12px", display: "flex", alignItems: "center", gap: "6px" }}>
+            <span>🔑</span> Registered Accounts & Credentials:
+          </p>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            {registeredAccounts.map((acc) => (
+              <div
+                key={acc.email}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "10px 14px",
+                  background: "rgba(255, 255, 255, 0.8)",
+                  border: "1px solid rgba(167, 243, 208, 0.8)",
+                  borderRadius: "10px",
+                  backdropFilter: "blur(10px)",
+                  fontSize: "12px",
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: "700", color: "#064e3b", display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span>{acc.name}</span>
+                    <span style={{ fontSize: "10px", padding: "2px 6px", background: "rgba(209, 250, 229, 0.9)", color: "#065f46", borderRadius: "10px", fontWeight: "800" }}>
+                      {acc.role}
+                    </span>
+                  </div>
+                  <div style={{ color: "#47745a", marginTop: "2px" }}>
+                    <code>{acc.email}</code> | Pass: <code>{acc.password}</code>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: "6px" }}>
+                  <button
+                    type="button"
+                    onClick={() => fillFormOnly(acc)}
+                    style={{
+                      padding: "6px 9px",
+                      background: "rgba(234, 243, 240, 0.9)",
+                      border: "1px solid rgba(6, 78, 59, 0.15)",
+                      borderRadius: "6px",
+                      fontSize: "11px",
+                      fontWeight: "600",
+                      cursor: "pointer",
+                      color: "#064e3b",
+                    }}
+                    title="Fill into form"
+                  >
+                    Fill
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickLogin(acc)}
+                    disabled={loading}
+                    style={{
+                      padding: "6px 12px",
+                      background: "linear-gradient(135deg, #059669 0%, #047857 100%)",
+                      border: "none",
+                      borderRadius: "6px",
+                      fontSize: "11px",
+                      fontWeight: "700",
+                      cursor: "pointer",
+                      color: "white",
+                      boxShadow: "0 2px 6px rgba(5, 150, 105, 0.25)",
+                    }}
+                    title="1-Click Login directly"
+                  >
+                    Login ➔
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <p className="auth-footer" style={{ marginTop: "22px" }}>
           Don't have an account? <Link to="/register">Register here</Link>
         </p>
       </div>
