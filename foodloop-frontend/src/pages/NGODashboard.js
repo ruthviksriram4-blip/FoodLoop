@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Navigate } from "react-router-dom";
 import api from "../services/api";
+import FoodLoopLogo from "../components/FoodLoopLogo";
 import "../styles/NGODashboard.css";
 
 function NGODashboard() {
@@ -216,7 +217,9 @@ function NGODashboard() {
   return (
     <div className="ngo-dashboard">
       <aside className="ngo-sidebar">
-        <div className="ngo-brand">FoodLoop</div>
+        <div className="ngo-brand">
+          <FoodLoopLogo size={32} variant="dark" />
+        </div>
 
         <div className="ngo-user">
           <div className="ngo-avatar">

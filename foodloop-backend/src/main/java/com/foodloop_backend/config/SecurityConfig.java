@@ -65,7 +65,7 @@ public class SecurityConfig {
 
                 // Public APIs
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers("/error").permitAll()
+                .requestMatchers("/error", "/favicon.ico", "/favicon.svg").permitAll()
                 .requestMatchers("/api/health").permitAll()
                 .requestMatchers(
                     "/api/users/register",

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Navigate } from "react-router-dom";
 import api from "../services/api";
+import FoodLoopLogo from "../components/FoodLoopLogo";
 import "../styles/DonorDashboard.css";
 
 function DonorDashboard() {
@@ -279,7 +280,9 @@ function DonorDashboard() {
   return (
     <div className="donor-dashboard">
       <aside className="donor-sidebar">
-        <div className="sidebar-brand">FoodLoop</div>
+        <div className="sidebar-brand">
+          <FoodLoopLogo size={32} variant="dark" />
+        </div>
 
         <div className="sidebar-user">
           <div className="user-avatar">

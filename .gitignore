@@ -9,3 +9,5 @@ target/
 *.log
 .pids/
 foodloop-backend/src/main/resources/application.properties
+.mysql_data/
+cloudflared

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import api from "../services/api";
+import FoodLoopLogo from "../components/FoodLoopLogo";
 import "../styles/VolunteerDashboard.css";
 
 function VolunteerDashboard() {
@@ -158,8 +159,8 @@ function VolunteerDashboard() {
     <div className="volunteer-dashboard">
       <aside className="volunteer-sidebar">
         <div className="volunteer-brand">
-          <h2>FoodLoop</h2>
-          <p>Volunteer Panel</p>
+          <FoodLoopLogo size={32} variant="dark" />
+          <p style={{ marginTop: "6px", marginLeft: "42px", color: "#a7f3d0", fontSize: "12px", fontWeight: "600" }}>Volunteer Panel</p>
         </div>
 
         <div className="volunteer-user">

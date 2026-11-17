@@ -23,26 +23,8 @@
   padding: 30px 20px;
 }
 
-.volunteer-brand h2 {
-  font-size: 26px;
-  font-weight: 800;
-  color: #a7f3d0;
-  letter-spacing: -0.5px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
-.volunteer-brand h2::before {
-  content: "🛵";
-  font-size: 22px;
-}
-
-.volunteer-brand p {
-  color: #a7f3d0;
-  font-size: 13px;
-  font-weight: 500;
+.volunteer-brand {
+  padding: 0 5px 10px;
 }
 
 .volunteer-user {

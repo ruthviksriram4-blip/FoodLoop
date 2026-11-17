@@ -25,26 +25,8 @@
   flex-direction: column;
 }
 
-.admin-brand h2 {
-  font-size: 26px;
-  font-weight: 800;
-  color: #a7f3d0;
-  letter-spacing: -0.5px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
-.admin-brand h2::before {
-  content: "🛡️";
-  font-size: 22px;
-}
-
-.admin-brand p {
-  font-size: 13px;
-  color: #a7f3d0;
-  font-weight: 500;
+.admin-brand {
+  padding: 0 5px 10px;
 }
 
 .admin-profile {

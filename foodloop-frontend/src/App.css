@@ -19,22 +19,27 @@
   z-index: 100;
 }
 
+.navbar-logo-link {
+  display: flex;
+  align-items: center;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.navbar-logo-link:hover {
+  transform: scale(1.02);
+}
+
+.navbar-logo-link:hover .foodloop-icon-svg {
+  transform: rotate(-8deg) scale(1.08);
+}
+
 .logo {
   font-size: 26px;
   font-weight: 800;
   letter-spacing: -0.5px;
-  background: linear-gradient(135deg, var(--emerald-800) 0%, var(--emerald-600) 60%, var(--emerald-400) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.logo::before {
-  content: "🌿";
-  font-size: 22px;
-  -webkit-text-fill-color: initial;
 }
 
 .nav-links {

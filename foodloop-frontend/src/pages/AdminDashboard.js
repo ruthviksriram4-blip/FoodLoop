@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import api from "../services/api";
+import FoodLoopLogo from "../components/FoodLoopLogo";
 import "../styles/AdminDashboard.css";
 
 function AdminDashboard() {
@@ -139,8 +140,8 @@ function AdminDashboard() {
     <div className="admin-dashboard">
       <aside className="admin-sidebar">
         <div className="admin-brand">
-          <h2>FoodLoop</h2>
-          <p>Administration Panel</p>
+          <FoodLoopLogo size={32} variant="dark" />
+          <p style={{ marginTop: "6px", marginLeft: "42px", color: "#a7f3d0", fontSize: "12px", fontWeight: "600" }}>Administration Panel</p>
         </div>
 
         <div className="admin-profile">

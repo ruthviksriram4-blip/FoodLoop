@@ -26,19 +26,7 @@
 }
 
 .ngo-brand {
-  font-size: 26px;
-  font-weight: 800;
-  padding: 0 10px 26px;
-  color: #a7f3d0;
-  letter-spacing: -0.5px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.ngo-brand::before {
-  content: "🤝";
-  font-size: 22px;
+  padding: 0 5px 24px;
 }
 
 .ngo-user {
