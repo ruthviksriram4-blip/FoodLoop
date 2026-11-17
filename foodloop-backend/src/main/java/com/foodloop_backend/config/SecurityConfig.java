@@ -63,6 +63,14 @@ public class SecurityConfig {
 
             .authorizeHttpRequests(auth -> auth
 
+                // Static resources & Frontend SPA routes
+                .requestMatchers(
+                    "/", "/index.html", "/static/**", "/manifest.json",
+                    "/favicon.ico", "/favicon.svg", "/favicon.png",
+                    "/logo192.png", "/logo512.png", "/robots.txt", "/asset-manifest.json",
+                    "/login", "/register", "/donor", "/ngo", "/volunteer", "/admin"
+                ).permitAll()
+
                 // Public APIs
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/error", "/favicon.ico", "/favicon.svg").permitAll()
@@ -158,7 +166,8 @@ public class SecurityConfig {
                 ).authenticated()
 
                 // All other API endpoints require authentication
-                .anyRequest().authenticated()
+                .requestMatchers("/api/**").authenticated()
+                .anyRequest().permitAll()
             )
 
             .addFilterBefore(
