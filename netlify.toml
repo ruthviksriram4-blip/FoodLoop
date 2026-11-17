@@ -1,0 +1,17 @@
+# ==============================================================================
+# FoodLoop – Netlify Deployment Configuration
+# ==============================================================================
+
+[build]
+  base = "foodloop-frontend"
+  publish = "build"
+  command = "CI=false npm run build"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Fallback all client-side React routes to index.html for SPA routing
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
